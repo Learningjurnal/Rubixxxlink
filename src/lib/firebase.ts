@@ -133,7 +133,9 @@ export function getCachedLocalLinks(): LinkItem[] {
 
 export function saveCachedLocalLinks(items: LinkItem[]): void {
   try {
-    localStorage.setItem(LOCAL_STORAGE_LINKS_KEY, JSON.stringify(items));
+    // Keep localStorage lightweight (< 1MB) for instant reload and zero stutter
+    const buffer = items.length > 1500 ? items.slice(0, 1500) : items;
+    localStorage.setItem(LOCAL_STORAGE_LINKS_KEY, JSON.stringify(buffer));
   } catch (e) {
     console.warn('Could not cache links to localStorage:', e);
   }

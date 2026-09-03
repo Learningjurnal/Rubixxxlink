@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Link2,
   Clock,
@@ -29,37 +29,68 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
   onFilterChange,
   activeFilter,
 }) => {
-  const total = items.length;
-  const blankCount = items.filter(i => i.status === 'Blank').length;
-  const downloadedCount = items.filter(i => i.status === 'Sudah Terunduh').length;
-  const inactiveCount = items.filter(
-    i => i.note.toLowerCase().includes('inactive') || i.status === 'Gagal'
-  ).length;
+  const {
+    total,
+    blankCount,
+    downloadedCount,
+    inactiveCount,
+    downloadProgress,
+    topDomains,
+    estimatedSizeMb,
+    milestoneTarget,
+    capacityPercent,
+  } = useMemo(() => {
+    const total = items.length;
+    let blankCount = 0;
+    let downloadedCount = 0;
+    let inactiveCount = 0;
+    const domainCounts: Record<string, number> = {};
 
-  const downloadProgress = total > 0 ? Math.round((downloadedCount / total) * 100) : 0;
+    for (let i = 0; i < total; i++) {
+      const item = items[i];
+      if (item.status === 'Blank') blankCount++;
+      if (item.status === 'Sudah Terunduh') downloadedCount++;
+      if ((item.note && item.note.toLowerCase().includes('inactive')) || item.status === 'Gagal') {
+        inactiveCount++;
+      }
 
-  // Domain breakdown for Bento source analysis
-  const domainCounts: Record<string, number> = {};
-  items.forEach(item => {
-    try {
-      const url = new URL(item.link);
-      const host = url.hostname.replace('www.', '');
+      // Fast hostname extraction without expensive new URL() constructor
+      const link = item.link || '';
+      let host = 'other';
+      const slashIndex = link.indexOf('://');
+      if (slashIndex !== -1) {
+        const afterProto = link.substring(slashIndex + 3);
+        const nextSlash = afterProto.indexOf('/');
+        host = (nextSlash !== -1 ? afterProto.substring(0, nextSlash) : afterProto)
+          .replace('www.', '')
+          .toLowerCase();
+      }
       domainCounts[host] = (domainCounts[host] || 0) + 1;
-    } catch {
-      domainCounts['other'] = (domainCounts['other'] || 0) + 1;
     }
-  });
 
-  const topDomains: Array<[string, number]> = Object.entries(domainCounts)
-    .sort((a, b) => Number(b[1]) - Number(a[1]))
-    .slice(0, 3);
+    const downloadProgress = total > 0 ? Math.round((downloadedCount / total) * 100) : 0;
+    const topDomains: Array<[string, number]> = Object.entries(domainCounts)
+      .sort((a, b) => Number(b[1]) - Number(a[1]))
+      .slice(0, 3);
 
-  // Big Data & Storage metrics (e.g. 29k links scale)
-  // Approximate 320 bytes per link object
-  const estimatedSizeBytes = total * 320;
-  const estimatedSizeMb = (estimatedSizeBytes / (1024 * 1024)).toFixed(2);
-  const milestoneTarget = total > 50000 ? 100000 : total > 25000 ? 50000 : total > 10000 ? 30000 : 10000;
-  const capacityPercent = Math.min(100, Math.round((total / milestoneTarget) * 100));
+    const estimatedSizeBytes = total * 320;
+    const estimatedSizeMb = (estimatedSizeBytes / (1024 * 1024)).toFixed(2);
+    const milestoneTarget =
+      total > 50000 ? 100000 : total > 25000 ? 50000 : total > 10000 ? 30000 : 10000;
+    const capacityPercent = Math.min(100, Math.round((total / milestoneTarget) * 100));
+
+    return {
+      total,
+      blankCount,
+      downloadedCount,
+      inactiveCount,
+      downloadProgress,
+      topDomains,
+      estimatedSizeMb,
+      milestoneTarget,
+      capacityPercent,
+    };
+  }, [items]);
 
   return (
     <div className="space-y-4 mb-6">

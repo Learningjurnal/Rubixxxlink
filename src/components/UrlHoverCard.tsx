@@ -45,7 +45,7 @@ export const UrlHoverCard: React.FC<UrlHoverCardProps> = ({
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
       setIsOpen(true);
-    }, 180);
+    }, 400);
   };
 
   const handleMouseLeave = () => {
