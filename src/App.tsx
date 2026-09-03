@@ -20,6 +20,7 @@ import {
   Database,
   CloudCheck,
   CheckCircle2,
+  RotateCcw,
 } from 'lucide-react';
 import { LinkItem, LinkStatus, FilterStatus, AppSettings, SortField, SortDirection } from './types';
 import { INITIAL_LINKS } from './data/initialData';
@@ -29,6 +30,7 @@ import { UploadExcelModal } from './components/UploadExcelModal';
 import { AddLinkModal } from './components/AddLinkModal';
 import { BatchActionsBar } from './components/BatchActionsBar';
 import { SettingsModal } from './components/SettingsModal';
+import { ResetDataModal } from './components/ResetDataModal';
 import { AuthModal } from './components/AuthModal';
 import { ExtractLinkModal } from './components/ExtractLinkModal';
 import { AnalyticsCharts } from './components/AnalyticsCharts';
@@ -53,19 +55,22 @@ import {
   clearAllLinksFromFirestore,
   clearKnownDummyLinksFromFirestore,
   DEFAULT_SETTINGS,
+  saveSettingsToFirestore,
   getCachedLocalLinks,
+  LOCAL_STORAGE_LINKS_KEY,
 } from './lib/firebase';
 
 export default function App() {
   // State for Links initialized from cache for instant offline-first display
   const [items, setItems] = useState<LinkItem[]>(() => getCachedLocalLinks());
   const [duplicatesPreventedCount, setDuplicatesPreventedCount] = useState<number>(0);
-  const [isDbLoading, setIsDbLoading] = useState(false);
+  const [isDbLoading, setIsDbLoading] = useState(true);
   const [isDbConnected, setIsDbConnected] = useState(true);
 
   // Settings State
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   // Auth State
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -254,6 +259,44 @@ export default function App() {
     }
   };
 
+  const handleSelectSpecificIds = (ids: string[], append = true) => {
+    setSelectedIds(prev => {
+      const next = append ? new Set(prev) : new Set<string>();
+      ids.forEach(id => next.add(id));
+      return next;
+    });
+  };
+
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setActiveFilter('ALL');
+    setStartDate('');
+    setEndDate('');
+    setSelectedIds(new Set());
+    addToast('info', 'Filter pencarian, status, periode tanggal, dan seleksi berhasil direset.');
+  };
+
+  const handleResetSettingsDefaults = async () => {
+    try {
+      setSettings(DEFAULT_SETTINGS);
+      await saveSettingsToFirestore(DEFAULT_SETTINGS);
+      addToast('success', 'Pengaturan opsi berhasil dikembalikan ke standar awal.');
+    } catch (e) {
+      console.error(e);
+      addToast('error', 'Gagal mereset pengaturan opsi.');
+    }
+  };
+
+  const handleClearEntireDatabase = async () => {
+    const count = await clearAllLinksFromFirestore();
+    setItems([]);
+    setSelectedIds(new Set());
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_LINKS_KEY);
+    } catch {}
+    addToast('warning', `Database berhasil dikosongkan (${count} tautan dibersihkan).`);
+  };
+
   // Status and data update handlers with Firestore sync
   const handleUpdateStatus = async (id: string, newStatus: LinkStatus) => {
     const today = formatDateNow();
@@ -399,26 +442,36 @@ export default function App() {
     const selectedItems = items.filter(i => selectedIds.has(i.id));
     if (selectedItems.length === 0) return;
 
-    if (selectedItems.length > 8) {
+    if (selectedItems.length > 15) {
       const confirmed = window.confirm(
-        `Anda akan membuka ${selectedItems.length} tautan sekaligus di tab baru.\n\nTips: Pastikan browser mengizinkan 'Pop-up and redirects' untuk situs ini jika ada tab yang terblokir.\n\nLanjutkan?`
+        `Anda akan membuka ${selectedItems.length} tautan sekaligus di tab baru!\n\nTips Browser: Jika hanya sebagian tab yang terbuka, pastikan Anda telah Mengizinkan 'Pop-up and redirects' untuk situs ini pada pengaturan browser Anda.\n\nLanjutkan membuka ${selectedItems.length} tab?`
       );
       if (!confirmed) return;
     }
 
-    // Open links with slight delay for large batches to avoid browser throttle
+    // Open links in fast stagger (50ms) to avoid browser popup suppression
     selectedItems.forEach((item, index) => {
-      if (index === 0) {
+      setTimeout(() => {
         window.open(item.link, '_blank', 'noopener,noreferrer');
-      } else {
-        setTimeout(() => {
-          window.open(item.link, '_blank', 'noopener,noreferrer');
-        }, index * 80);
-      }
+      }, index * 50);
     });
 
-    addToast('info', `${selectedItems.length} link sedang dibuka di tab baru.`);
+    addToast('info', `${selectedItems.length} tautan sedang dibuka sekaligus di tab baru.`);
   };
+
+  // Keyboard shortcut: Ctrl + Shift + O to open all selected links
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'O' || e.key === 'o')) {
+        e.preventDefault();
+        if (selectedIds.size > 0) {
+          handleBatchOpenSelected();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedIds, items]);
 
   const handleBatchCopySelected = () => {
     const selectedUrls = items
@@ -679,11 +732,23 @@ export default function App() {
                 type="button"
                 id="btn-open-settings-modal"
                 onClick={() => setIsSettingsModalOpen(true)}
-                className="px-3 py-2 text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl transition flex items-center gap-1.5 shadow-2xs"
+                className="px-3 py-2 text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 title="Atur pilihan dropdown Status, Output, Region, dan Note"
               >
                 <Sliders className="w-4 h-4 text-slate-600" />
                 <span className="hidden sm:inline">Pengaturan Opsi</span>
+              </button>
+
+              {/* Reset Data Modal Button */}
+              <button
+                type="button"
+                id="btn-open-reset-data-modal"
+                onClick={() => setIsResetModalOpen(true)}
+                className="px-3 py-2 text-xs font-semibold bg-white border border-slate-200 hover:bg-rose-50 text-slate-700 hover:text-rose-700 hover:border-rose-200 rounded-xl transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                title="Pusat Reset Data: Reset Filter, Pengaturan, atau Kosongkan Database"
+              >
+                <RotateCcw className="w-4 h-4 text-rose-500" />
+                <span className="hidden sm:inline">Reset Data</span>
               </button>
 
               {/* User Email Auth */}
@@ -846,6 +911,8 @@ export default function App() {
           onEndDateChange={setEndDate}
           onResetPeriod={handleResetPeriod}
           onSetQuickPeriod={handleSetQuickPeriod}
+          onSelectSpecificIds={handleSelectSpecificIds}
+          isLoading={isDbLoading}
         />
       </main>
 
@@ -878,6 +945,16 @@ export default function App() {
         settings={settings}
         onSaveSettings={setSettings}
         onClearAllData={handleClearAllData}
+        totalLinksCount={items.length}
+      />
+
+      {/* Reset Data Modal (Pusat Reset Filter, Opsi, & Database) */}
+      <ResetDataModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onResetFilters={handleResetFilters}
+        onResetSettings={handleResetSettingsDefaults}
+        onClearDatabase={handleClearEntireDatabase}
         totalLinksCount={items.length}
       />
 

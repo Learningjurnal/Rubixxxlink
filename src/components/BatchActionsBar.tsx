@@ -259,15 +259,16 @@ export const BatchActionsBar: React.FC<BatchActionsBarProps> = ({
           </button>
         )}
 
-        {/* Buka Tautan */}
+        {/* Buka Tautan Sekaligus */}
         <button
           type="button"
           id="btn-batch-open-links"
           onClick={onOpenSelected}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition shadow-xs cursor-pointer"
+          title="Buka seluruh tautan terpilih sekaligus di tab baru (Shortcut: Ctrl+Shift+O)"
         >
-          <ExternalLink className="w-3.5 h-3.5" />
-          <span>Buka di Tab</span>
+          <ExternalLink className="w-3.5 h-3.5 text-indigo-100" />
+          <span>Buka Semua ({selectedCount} Tab)</span>
         </button>
 
         {/* Salin Tautan */}
