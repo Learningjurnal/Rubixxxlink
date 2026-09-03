@@ -10,6 +10,7 @@ import {
   X,
   SearchCheck,
   Loader2,
+  Download,
 } from 'lucide-react';
 import { LinkStatus } from '../types';
 
@@ -21,6 +22,7 @@ interface BatchActionsBarProps {
   onOpenSelected: () => void;
   onCopySelected: () => void;
   onDeleteSelected: () => void;
+  onExportSelectedCsv?: () => void;
   onCheckStatusSelected?: () => void;
   isCheckingStatus?: boolean;
   checkingProgress?: { current: number; total: number } | null;
@@ -37,6 +39,7 @@ export const BatchActionsBar: React.FC<BatchActionsBarProps> = ({
   onOpenSelected,
   onCopySelected,
   onDeleteSelected,
+  onExportSelectedCsv,
   onCheckStatusSelected,
   isCheckingStatus = false,
   checkingProgress = null,
@@ -241,6 +244,20 @@ export const BatchActionsBar: React.FC<BatchActionsBarProps> = ({
             </div>
           )}
         </div>
+
+        {/* Export Filtered CSV */}
+        {onExportSelectedCsv && (
+          <button
+            type="button"
+            id="btn-batch-export-csv"
+            onClick={onExportSelectedCsv}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-teal-600 hover:bg-teal-500 text-white transition shadow-xs cursor-pointer"
+            title="Download tautan terpilih sebagai file CSV"
+          >
+            <Download className="w-3.5 h-3.5 text-teal-100" />
+            <span>Export Filtered CSV</span>
+          </button>
+        )}
 
         {/* Buka Tautan */}
         <button

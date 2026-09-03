@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   ExternalLink,
   Copy,
@@ -16,8 +16,32 @@ import {
   Calendar,
   Sparkles,
   Tag,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { LinkItem, LinkStatus, AppSettings, SortField, SortDirection } from '../types';
+import { UrlHoverCard } from './UrlHoverCard';
+
+export type ColumnKey = 'status' | 'output' | 'region' | 'counta' | 'note' | 'diperbarui' | 'actions';
+
+const DEFAULT_VISIBLE_COLUMNS: Record<ColumnKey, boolean> = {
+  status: true,
+  output: true,
+  region: true,
+  counta: true,
+  note: true,
+  diperbarui: true,
+  actions: true,
+};
+
+const COLUMN_DEFINITIONS: { key: ColumnKey; label: string }[] = [
+  { key: 'status', label: 'Status' },
+  { key: 'output', label: 'Output' },
+  { key: 'region', label: 'Region' },
+  { key: 'counta', label: 'Counta' },
+  { key: 'note', label: 'Catatan (Note)' },
+  { key: 'diperbarui', label: 'Diperbarui' },
+  { key: 'actions', label: 'Aksi Download' },
+];
 
 interface LinkTableProps {
   items: LinkItem[];
@@ -71,6 +95,67 @@ export const LinkTable: React.FC<LinkTableProps> = ({
 }) => {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [tempNote, setTempNote] = useState('');
+  const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
+  const columnMenuRef = useRef<HTMLDivElement>(null);
+
+  // Load / persist column visibility from localStorage
+  const [visibleColumns, setVisibleColumns] = useState<Record<ColumnKey, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('rubixxxlink_column_visibility');
+      if (saved) {
+        return { ...DEFAULT_VISIBLE_COLUMNS, ...JSON.parse(saved) };
+      }
+    } catch {}
+    return DEFAULT_VISIBLE_COLUMNS;
+  });
+
+  // Close column menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (columnMenuRef.current && !columnMenuRef.current.contains(event.target as Node)) {
+        setIsColumnMenuOpen(false);
+      }
+    }
+    if (isColumnMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isColumnMenuOpen]);
+
+  const toggleColumn = (key: ColumnKey) => {
+    setVisibleColumns(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem('rubixxxlink_column_visibility', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const showAllColumns = () => {
+    const allTrue: Record<ColumnKey, boolean> = {
+      status: true,
+      output: true,
+      region: true,
+      counta: true,
+      note: true,
+      diperbarui: true,
+      actions: true,
+    };
+    setVisibleColumns(allTrue);
+    try {
+      localStorage.setItem('rubixxxlink_column_visibility', JSON.stringify(allTrue));
+    } catch {}
+  };
+
+  const resetDefaultColumns = () => {
+    setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
+    try {
+      localStorage.setItem('rubixxxlink_column_visibility', JSON.stringify(DEFAULT_VISIBLE_COLUMNS));
+    } catch {}
+  };
 
   const allSelected = items.length > 0 && selectedIds.size === items.length;
 
@@ -89,12 +174,13 @@ export const LinkTable: React.FC<LinkTableProps> = ({
   };
 
   const hasActivePeriod = Boolean(startDate || endDate);
+  const visibleColumnCount = 2 + Object.values(visibleColumns).filter(Boolean).length;
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xs border border-slate-200/80 dark:border-slate-800 overflow-hidden w-full">
       {/* Table Tab Header (Bento Registry Header + Period Filter Bar) */}
       <div className="px-5 py-4 bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-200/80 dark:border-slate-800 space-y-3">
-        {/* Top Controls: Table Tab + Sort By Dropdown */}
+        {/* Top Controls: Table Tab + Sort By Dropdown + Column Visibility Toggle */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-slate-900 dark:bg-slate-800 text-white rounded-xl font-semibold text-xs shadow-xs tracking-wide border border-slate-800 dark:border-slate-700">
@@ -107,35 +193,114 @@ export const LinkTable: React.FC<LinkTableProps> = ({
             </span>
           </div>
 
-          {/* Sort By Dropdown Controller */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold flex items-center gap-1">
-              <ArrowUpDown className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-              <span>Sort By:</span>
-            </span>
-            <select
-              id="sort-by-select"
-              value={sortField || 'diperbarui'}
-              onChange={e => onSort(e.target.value as SortField)}
-              className="text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-600 cursor-pointer shadow-2xs"
-            >
-              <option value="diperbarui" className="dark:bg-slate-800 dark:text-slate-200">Tanggal Diperbarui</option>
-              <option value="createdAt" className="dark:bg-slate-800 dark:text-slate-200">Tanggal Dibuat</option>
-              <option value="link" className="dark:bg-slate-800 dark:text-slate-200">Link URL</option>
-              <option value="name" className="dark:bg-slate-800 dark:text-slate-200">Nama / Judul</option>
-              <option value="status" className="dark:bg-slate-800 dark:text-slate-200">Status</option>
-              <option value="output" className="dark:bg-slate-800 dark:text-slate-200">Output</option>
-              <option value="region" className="dark:bg-slate-800 dark:text-slate-200">Region</option>
-              <option value="counta" className="dark:bg-slate-800 dark:text-slate-200">Counta</option>
-              <option value="note" className="dark:bg-slate-800 dark:text-slate-200">Note</option>
-            </select>
-            <button
-              onClick={() => onSort((sortField || 'diperbarui') as SortField)}
-              title="Balik urutan (Ascending / Descending)"
-              className="p-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-indigo-700 dark:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-2xs flex items-center gap-1"
-            >
-              <span>{sortDirection === 'asc' ? 'A-Z ↑' : 'Z-A ↓'}</span>
-            </button>
+          {/* Right Controls: Sort By Dropdown & Columns Visibility */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Sort By Controller */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold flex items-center gap-1">
+                <ArrowUpDown className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>Sort By:</span>
+              </span>
+              <select
+                id="sort-by-select"
+                value={sortField || 'diperbarui'}
+                onChange={e => onSort(e.target.value as SortField)}
+                className="text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-600 cursor-pointer shadow-2xs"
+              >
+                <option value="diperbarui" className="dark:bg-slate-800 dark:text-slate-200">Tanggal Diperbarui</option>
+                <option value="createdAt" className="dark:bg-slate-800 dark:text-slate-200">Tanggal Dibuat</option>
+                <option value="link" className="dark:bg-slate-800 dark:text-slate-200">Link URL</option>
+                <option value="name" className="dark:bg-slate-800 dark:text-slate-200">Nama / Judul</option>
+                <option value="status" className="dark:bg-slate-800 dark:text-slate-200">Status</option>
+                <option value="output" className="dark:bg-slate-800 dark:text-slate-200">Output</option>
+                <option value="region" className="dark:bg-slate-800 dark:text-slate-200">Region</option>
+                <option value="counta" className="dark:bg-slate-800 dark:text-slate-200">Counta</option>
+                <option value="note" className="dark:bg-slate-800 dark:text-slate-200">Note</option>
+              </select>
+              <button
+                onClick={() => onSort((sortField || 'diperbarui') as SortField)}
+                title="Balik urutan (Ascending / Descending)"
+                className="p-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-indigo-700 dark:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-2xs flex items-center gap-1 cursor-pointer"
+              >
+                <span>{sortDirection === 'asc' ? 'A-Z ↑' : 'Z-A ↓'}</span>
+              </button>
+            </div>
+
+            {/* Column Visibility Toggle Menu */}
+            <div className="relative" ref={columnMenuRef}>
+              <button
+                type="button"
+                id="btn-toggle-columns-menu"
+                onClick={() => setIsColumnMenuOpen(prev => !prev)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition shadow-2xs cursor-pointer ${
+                  isColumnMenuOpen
+                    ? 'bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700'
+                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                }`}
+                title="Atur kolom yang ingin ditampilkan atau disembunyikan"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>Kolom</span>
+                <ChevronDown className={`w-3 h-3 transition-transform duration-150 ${isColumnMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Column Visibility Dropdown */}
+              {isColumnMenuOpen && (
+                <div
+                  id="columns-visibility-dropdown"
+                  className="absolute right-0 top-full mt-2 w-56 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-50 text-slate-800 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-150"
+                >
+                  <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Tampilan Kolom</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsColumnMenuOpen(false)}
+                      className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* List of toggleable columns */}
+                  <div className="space-y-1.5 py-1">
+                    {COLUMN_DEFINITIONS.map(col => (
+                      <label
+                        key={col.key}
+                        className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/80 cursor-pointer text-xs select-none"
+                      >
+                        <span className="font-medium text-slate-700 dark:text-slate-300">{col.label}</span>
+                        <input
+                          type="checkbox"
+                          checked={visibleColumns[col.key]}
+                          onChange={() => toggleColumn(col.key)}
+                          className="rounded text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                        />
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                    <button
+                      type="button"
+                      onClick={showAllColumns}
+                      className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold cursor-pointer"
+                    >
+                      Pilih Semua
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetDefaultColumns}
+                      className="text-slate-500 dark:text-slate-400 hover:underline cursor-pointer"
+                    >
+                      Reset Default
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -150,52 +315,49 @@ export const LinkTable: React.FC<LinkTableProps> = ({
               <span>Filter Periode Tanggal:</span>
             </span>
 
-            {/* Start Date */}
             <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 py-1 shadow-2xs">
-              <span className="text-slate-400 dark:text-slate-500 text-[11px] font-medium">Dari:</span>
+              <span className="text-[11px] text-slate-400 font-medium">Dari</span>
               <input
                 type="date"
-                id="period-start-date"
+                id="filter-start-date"
                 value={startDate}
                 onChange={e => onStartDateChange(e.target.value)}
-                className="text-xs text-slate-700 dark:text-slate-200 outline-none cursor-pointer bg-transparent"
+                className="bg-transparent text-slate-700 dark:text-slate-200 text-xs font-semibold outline-none cursor-pointer"
               />
-            </div>
-
-            <span className="text-slate-400 dark:text-slate-500 font-bold">ke</span>
-
-            {/* End Date */}
-            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 py-1 shadow-2xs">
-              <span className="text-slate-400 dark:text-slate-500 text-[11px] font-medium">Sampai:</span>
+              <span className="text-slate-400 font-bold">-</span>
+              <span className="text-[11px] text-slate-400 font-medium">Hingga</span>
               <input
                 type="date"
-                id="period-end-date"
+                id="filter-end-date"
                 value={endDate}
                 onChange={e => onEndDateChange(e.target.value)}
-                className="text-xs text-slate-700 dark:text-slate-200 outline-none cursor-pointer bg-transparent"
+                className="bg-transparent text-slate-700 dark:text-slate-200 text-xs font-semibold outline-none cursor-pointer"
               />
             </div>
 
             {/* Quick Period Buttons */}
-            <div className="flex items-center gap-1 ml-1">
+            <div className="flex items-center gap-1">
               <button
-                type="button"
                 onClick={() => onSetQuickPeriod('today')}
-                className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-2xs cursor-pointer"
+                className="px-2 py-1 text-[11px] font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-2xs cursor-pointer"
               >
                 Hari Ini
               </button>
               <button
-                type="button"
                 onClick={() => onSetQuickPeriod(7)}
-                className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-2xs cursor-pointer"
+                className="px-2 py-1 text-[11px] font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-2xs cursor-pointer"
               >
                 7 Hari
               </button>
               <button
-                type="button"
+                onClick={() => onSetQuickPeriod(30)}
+                className="px-2 py-1 text-[11px] font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-2xs cursor-pointer"
+              >
+                30 Hari
+              </button>
+              <button
                 onClick={() => onSetQuickPeriod('thisMonth')}
-                className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-2xs cursor-pointer"
+                className="px-2 py-1 text-[11px] font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-2xs cursor-pointer"
               >
                 Bulan Ini
               </button>
@@ -251,90 +413,104 @@ export const LinkTable: React.FC<LinkTableProps> = ({
               </th>
 
               {/* Status Column */}
-              <th
-                className="py-3.5 px-3 w-44 border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition text-center"
-                onClick={() => onSort('status')}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-indigo-400" />
-                    <span>Status</span>
+              {visibleColumns.status && (
+                <th
+                  className="py-3.5 px-3 w-44 border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition text-center"
+                  onClick={() => onSort('status')}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-indigo-400" />
+                      <span>Status</span>
+                    </div>
+                    {sortField === 'status' && (
+                      <ArrowUpDown className="w-3 h-3 text-indigo-400" />
+                    )}
                   </div>
-                  {sortField === 'status' && (
-                    <ArrowUpDown className="w-3 h-3 text-indigo-400" />
-                  )}
-                </div>
-              </th>
+                </th>
+              )}
 
               {/* Output Column */}
-              <th
-                className="py-3.5 px-3 w-28 border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition text-center"
-                onClick={() => onSort('output')}
-              >
-                <div className="flex items-center justify-between">
-                  <span>Output</span>
-                  {sortField === 'output' && (
-                    <ArrowUpDown className="w-3 h-3 text-indigo-400" />
-                  )}
-                </div>
-              </th>
+              {visibleColumns.output && (
+                <th
+                  className="py-3.5 px-3 w-28 border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition text-center"
+                  onClick={() => onSort('output')}
+                >
+                  <div className="flex items-center justify-between">
+                    <span>Output</span>
+                    {sortField === 'output' && (
+                      <ArrowUpDown className="w-3 h-3 text-indigo-400" />
+                    )}
+                  </div>
+                </th>
+              )}
 
               {/* Region Column */}
-              <th
-                className="py-3.5 px-3 w-24 border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition text-center"
-                onClick={() => onSort('region')}
-              >
-                <div className="flex items-center justify-between">
-                  <span>Region</span>
-                  {sortField === 'region' && (
-                    <ArrowUpDown className="w-3 h-3 text-indigo-400" />
-                  )}
-                </div>
-              </th>
+              {visibleColumns.region && (
+                <th
+                  className="py-3.5 px-3 w-24 border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition text-center"
+                  onClick={() => onSort('region')}
+                >
+                  <div className="flex items-center justify-between">
+                    <span>Region</span>
+                    {sortField === 'region' && (
+                      <ArrowUpDown className="w-3 h-3 text-indigo-400" />
+                    )}
+                  </div>
+                </th>
+              )}
 
               {/* Counta Column */}
-              <th
-                className="py-3.5 px-3 w-24 border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition text-center"
-                onClick={() => onSort('counta')}
-              >
-                <div className="flex items-center justify-between">
-                  <span>Counta</span>
-                  {sortField === 'counta' && (
-                    <ArrowUpDown className="w-3 h-3 text-indigo-400" />
-                  )}
-                </div>
-              </th>
+              {visibleColumns.counta && (
+                <th
+                  className="py-3.5 px-3 w-24 border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition text-center"
+                  onClick={() => onSort('counta')}
+                >
+                  <div className="flex items-center justify-between">
+                    <span>Counta</span>
+                    {sortField === 'counta' && (
+                      <ArrowUpDown className="w-3 h-3 text-indigo-400" />
+                    )}
+                  </div>
+                </th>
+              )}
 
               {/* Note Column */}
-              <th
-                className="py-3.5 px-4 min-w-[160px] border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition"
-                onClick={() => onSort('note')}
-              >
-                <div className="flex items-center justify-between">
-                  <span>Note</span>
-                  {sortField === 'note' && (
-                    <ArrowUpDown className="w-3 h-3 text-indigo-400" />
-                  )}
-                </div>
-              </th>
+              {visibleColumns.note && (
+                <th
+                  className="py-3.5 px-4 min-w-[160px] border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition"
+                  onClick={() => onSort('note')}
+                >
+                  <div className="flex items-center justify-between">
+                    <span>Note</span>
+                    {sortField === 'note' && (
+                      <ArrowUpDown className="w-3 h-3 text-indigo-400" />
+                    )}
+                  </div>
+                </th>
+              )}
 
               {/* Diperbarui Column */}
-              <th
-                className="py-3.5 px-3 w-36 border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition text-center"
-                onClick={() => onSort('diperbarui')}
-              >
-                <div className="flex items-center justify-between">
-                  <span>Diperbarui</span>
-                  {sortField === 'diperbarui' && (
-                    <ArrowUpDown className="w-3 h-3 text-indigo-400" />
-                  )}
-                </div>
-              </th>
+              {visibleColumns.diperbarui && (
+                <th
+                  className="py-3.5 px-3 w-36 border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition text-center"
+                  onClick={() => onSort('diperbarui')}
+                >
+                  <div className="flex items-center justify-between">
+                    <span>Diperbarui</span>
+                    {sortField === 'diperbarui' && (
+                      <ArrowUpDown className="w-3 h-3 text-indigo-400" />
+                    )}
+                  </div>
+                </th>
+              )}
 
               {/* Actions Column */}
-              <th className="py-3.5 px-3 w-40 text-center">
-                <span>Aksi Download</span>
-              </th>
+              {visibleColumns.actions && (
+                <th className="py-3.5 px-3 w-40 text-center">
+                  <span>Aksi Download</span>
+                </th>
+              )}
             </tr>
           </thead>
 
@@ -342,7 +518,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-14 text-center text-slate-400 dark:text-slate-500">
+                <td colSpan={visibleColumnCount} className="py-14 text-center text-slate-400 dark:text-slate-500">
                   <div className="max-w-md mx-auto space-y-2">
                     <TableIcon className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
                     <p className="font-semibold text-slate-700 dark:text-slate-300">Tidak ada tautan yang sesuai</p>
@@ -381,7 +557,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                       />
                     </td>
 
-                    {/* Link & Name Column */}
+                    {/* Link & Name Column with UrlHoverCard */}
                     <td className="py-2 px-4 border-r border-slate-100 dark:border-slate-800/80 max-w-[460px]">
                       <div className="flex items-center justify-between gap-2 group">
                         <div className="truncate flex-1">
@@ -405,19 +581,12 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                               </span>
                             </div>
                           )}
-                          <a
-                            href={item.link}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                            title={item.link}
-                            className={`truncate block underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-indigo-600 transition text-[12px] ${
-                              isDownloaded
-                                ? 'text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-300 font-normal'
-                                : 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium'
-                            }`}
-                          >
-                            {item.link}
-                          </a>
+                          {/* Hover-card enabled interactive URL */}
+                          <UrlHoverCard
+                            item={item}
+                            onCopyLink={onCopyLink}
+                            isDownloaded={isDownloaded}
+                          />
                         </div>
                         <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition flex-shrink-0">
                           <button
@@ -441,192 +610,206 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                       </div>
                     </td>
 
-                    {/* Status Dropdown (populated from settings) */}
-                    <td className="py-2.5 px-3 text-center border-r border-slate-100 dark:border-slate-800/80">
-                      <div className="relative inline-block">
-                        <select
-                          value={item.status}
-                          onChange={e => onUpdateStatus(item.id, e.target.value)}
-                          className={`appearance-none font-bold text-[11px] px-3 py-1 rounded-full cursor-pointer pr-6 shadow-2xs border transition outline-none ${
-                            item.status === 'Blank'
-                              ? 'bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-950 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/60'
-                              : item.status === 'Sudah Terunduh'
-                              ? 'bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
-                              : item.status === 'Proses'
-                              ? 'bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60'
-                              : item.status === 'Web Inactive'
-                              ? 'bg-red-100 dark:bg-red-950 hover:bg-red-200 text-red-800 dark:text-red-300 border-red-300 dark:border-red-800'
-                              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                          }`}
-                        >
-                          {settings.statusOptions.map((st, sIdx) => (
-                            <option key={sIdx} value={st} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-                              {st}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown className="w-3 h-3 text-slate-500 dark:text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-80" />
-                      </div>
-                    </td>
-
-                    {/* Output Dropdown / Pill (populated from settings) */}
-                    <td className="py-2.5 px-3 text-center border-r border-slate-100 dark:border-slate-800/80">
-                      {onUpdateOutput ? (
+                    {/* Status Dropdown */}
+                    {visibleColumns.status && (
+                      <td className="py-2.5 px-3 text-center border-r border-slate-100 dark:border-slate-800/80">
                         <div className="relative inline-block">
                           <select
-                            value={item.output}
-                            onChange={e => onUpdateOutput(item.id, e.target.value)}
-                            className="appearance-none inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 pr-5 cursor-pointer outline-none"
+                            value={item.status}
+                            onChange={e => onUpdateStatus(item.id, e.target.value)}
+                            className={`appearance-none font-bold text-[11px] px-3 py-1 rounded-full cursor-pointer pr-6 shadow-2xs border transition outline-none ${
+                              item.status === 'Blank'
+                                ? 'bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-950 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/60'
+                                : item.status === 'Sudah Terunduh'
+                                ? 'bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
+                                : item.status === 'Proses'
+                                ? 'bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60'
+                                : item.status === 'Web Inactive'
+                                ? 'bg-red-100 dark:bg-red-950 hover:bg-red-200 text-red-800 dark:text-red-300 border-red-300 dark:border-red-800'
+                                : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                            }`}
                           >
-                            {settings.outputOptions.map((out, oIdx) => (
-                              <option key={oIdx} value={out} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-                                {out}
+                            {settings.statusOptions.map((st, sIdx) => (
+                              <option key={sIdx} value={st} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+                                {st}
                               </option>
                             ))}
                           </select>
-                          <ChevronDown className="w-2.5 h-2.5 text-indigo-500 dark:text-indigo-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <ChevronDown className="w-3 h-3 text-slate-500 dark:text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-80" />
                         </div>
-                      ) : (
-                        <div className="inline-flex items-center justify-center px-3 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
-                          {item.output}
-                        </div>
-                      )}
-                    </td>
+                      </td>
+                    )}
 
-                    {/* Region Dropdown / Tag (populated from settings) */}
-                    <td className="py-2.5 px-3 text-center font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800/80">
-                      {onUpdateRegion ? (
-                        <select
-                          value={item.region}
-                          onChange={e => onUpdateRegion(item.id, e.target.value)}
-                          className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-semibold border border-slate-200 dark:border-slate-700 cursor-pointer outline-none"
-                        >
-                          {settings.regionOptions.map((reg, rIdx) => (
-                            <option key={rIdx} value={reg} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-                              {reg}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-semibold">
-                          {item.region}
-                        </span>
-                      )}
-                    </td>
+                    {/* Output Dropdown / Pill */}
+                    {visibleColumns.output && (
+                      <td className="py-2.5 px-3 text-center border-r border-slate-100 dark:border-slate-800/80">
+                        {onUpdateOutput ? (
+                          <div className="relative inline-block">
+                            <select
+                              value={item.output}
+                              onChange={e => onUpdateOutput(item.id, e.target.value)}
+                              className="appearance-none inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 pr-5 cursor-pointer outline-none"
+                            >
+                              {settings.outputOptions.map((out, oIdx) => (
+                                <option key={oIdx} value={out} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+                                  {out}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown className="w-2.5 h-2.5 text-indigo-500 dark:text-indigo-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center justify-center px-3 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
+                            {item.output}
+                          </div>
+                        )}
+                      </td>
+                    )}
+
+                    {/* Region Dropdown / Tag */}
+                    {visibleColumns.region && (
+                      <td className="py-2.5 px-3 text-center font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800/80">
+                        {onUpdateRegion ? (
+                          <select
+                            value={item.region}
+                            onChange={e => onUpdateRegion(item.id, e.target.value)}
+                            className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-semibold border border-slate-200 dark:border-slate-700 cursor-pointer outline-none"
+                          >
+                            {settings.regionOptions.map((reg, rIdx) => (
+                              <option key={rIdx} value={reg} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+                                {reg}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-semibold">
+                            {item.region}
+                          </span>
+                        )}
+                      </td>
+                    )}
 
                     {/* Counta */}
-                    <td className="py-2.5 px-3 text-center font-medium text-slate-600 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800/80">
-                      {item.counta}
-                    </td>
+                    {visibleColumns.counta && (
+                      <td className="py-2.5 px-3 text-center font-medium text-slate-600 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800/80">
+                        {item.counta}
+                      </td>
+                    )}
 
-                    {/* Note (Editable with quick presets from settings) */}
-                    <td className="py-2.5 px-4 border-r border-slate-100 dark:border-slate-800/80">
-                      {editingNoteId === item.id ? (
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="text"
-                              value={tempNote}
-                              onChange={e => setTempNote(e.target.value)}
-                              className="text-xs p-1 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none w-full bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                              autoFocus
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') saveNote(item.id);
-                                if (e.key === 'Escape') cancelEditNote();
-                              }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => saveNote(item.id)}
-                              className="p-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer"
-                            >
-                              <Check className="w-3 h-3" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={cancelEditNote}
-                              className="p-1 rounded bg-slate-300 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-400 dark:hover:bg-slate-600 cursor-pointer"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                          {/* Quick preset chips */}
-                          <div className="flex flex-wrap gap-1">
-                            {settings.notePresets.map((preset, pIdx) => (
+                    {/* Note (Editable) */}
+                    {visibleColumns.note && (
+                      <td className="py-2.5 px-4 border-r border-slate-100 dark:border-slate-800/80">
+                        {editingNoteId === item.id ? (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={tempNote}
+                                onChange={e => setTempNote(e.target.value)}
+                                className="text-xs p-1 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-indigo-500 outline-none w-full bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                                autoFocus
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') saveNote(item.id);
+                                  if (e.key === 'Escape') cancelEditNote();
+                                }}
+                              />
                               <button
-                                key={pIdx}
                                 type="button"
-                                onClick={() => setTempNote(preset)}
-                                className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-950/80 text-slate-700 dark:text-slate-300 hover:text-indigo-800 dark:hover:text-indigo-300 cursor-pointer"
+                                onClick={() => saveNote(item.id)}
+                                className="p-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer"
                               >
-                                {preset}
+                                <Check className="w-3 h-3" />
                               </button>
-                            ))}
+                              <button
+                                type="button"
+                                onClick={cancelEditNote}
+                                className="p-1 rounded bg-slate-300 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-400 dark:hover:bg-slate-600 cursor-pointer"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                            {/* Quick preset chips */}
+                            <div className="flex flex-wrap gap-1">
+                              {settings.notePresets.map((preset, pIdx) => (
+                                <button
+                                  key={pIdx}
+                                  type="button"
+                                  onClick={() => setTempNote(preset)}
+                                  className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-950/80 text-slate-700 dark:text-slate-300 hover:text-indigo-800 dark:hover:text-indigo-300 cursor-pointer"
+                                >
+                                  {preset}
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div
-                          className="flex items-center justify-between group cursor-pointer"
-                          onClick={() => startEditNote(item)}
-                          title="Klik untuk mengubah catatan"
-                        >
-                          <span
-                            className={`truncate max-w-[140px] ${
-                              item.note === 'Web Inactive'
-                                ? 'text-red-700 dark:text-red-400 font-semibold bg-red-50 dark:bg-red-950/60 px-2 py-0.5 rounded'
-                                : 'text-slate-600 dark:text-slate-400'
-                            }`}
+                        ) : (
+                          <div
+                            className="flex items-center justify-between group cursor-pointer"
+                            onClick={() => startEditNote(item)}
+                            title="Klik untuk mengubah catatan"
                           >
-                            {item.note || '-'}
-                          </span>
-                          <Edit2 className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition ml-1" />
-                        </div>
-                      )}
-                    </td>
+                            <span
+                              className={`truncate max-w-[140px] ${
+                                item.note === 'Web Inactive'
+                                  ? 'text-red-700 dark:text-red-400 font-semibold bg-red-50 dark:bg-red-950/60 px-2 py-0.5 rounded'
+                                  : 'text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              {item.note || '-'}
+                            </span>
+                            <Edit2 className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition ml-1" />
+                          </div>
+                        )}
+                      </td>
+                    )}
 
                     {/* Diperbarui */}
-                    <td className="py-2.5 px-3 text-center text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap border-r border-slate-100 dark:border-slate-800/80 text-[11px]">
-                      {item.diperbarui}
-                    </td>
+                    {visibleColumns.diperbarui && (
+                      <td className="py-2.5 px-3 text-center text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap border-r border-slate-100 dark:border-slate-800/80 text-[11px]">
+                        {item.diperbarui}
+                      </td>
+                    )}
 
                     {/* Actions Column */}
-                    <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1.5">
-                        {isDownloaded ? (
-                          <button
-                            type="button"
-                            id={`btn-revert-${item.id}`}
-                            onClick={() => onUpdateStatus(item.id, 'Blank')}
-                            title="Tandai belum diunduh (kembalikan ke Blank)"
-                            className="px-2.5 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition flex items-center gap-1 cursor-pointer"
-                          >
-                            <Clock className="w-3 h-3 text-slate-500 dark:text-slate-400" />
-                            <span>Batal</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            id={`btn-download-mark-${item.id}`}
-                            onClick={() => onDownloadAndMark(item)}
-                            title="Buka link download dan otomatis tandai status 'Sudah Terunduh'"
-                            className="px-2.5 py-1 text-[11px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition shadow-xs flex items-center gap-1 cursor-pointer"
-                          >
-                            <DownloadCloud className="w-3.5 h-3.5 text-indigo-100" />
-                            <span>Unduh & Tandai</span>
-                          </button>
-                        )}
+                    {visibleColumns.actions && (
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {isDownloaded ? (
+                            <button
+                              type="button"
+                              id={`btn-revert-${item.id}`}
+                              onClick={() => onUpdateStatus(item.id, 'Blank')}
+                              title="Tandai belum diunduh (kembalikan ke Blank)"
+                              className="px-2.5 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition flex items-center gap-1 cursor-pointer"
+                            >
+                              <Clock className="w-3 h-3 text-slate-500 dark:text-slate-400" />
+                              <span>Batal</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              id={`btn-download-mark-${item.id}`}
+                              onClick={() => onDownloadAndMark(item)}
+                              title="Buka link download dan otomatis tandai status 'Sudah Terunduh'"
+                              className="px-2.5 py-1 text-[11px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition shadow-xs flex items-center gap-1 cursor-pointer"
+                            >
+                              <DownloadCloud className="w-3.5 h-3.5 text-indigo-100" />
+                              <span>Unduh & Tandai</span>
+                            </button>
+                          )}
 
-                        <button
-                          type="button"
-                          id={`btn-delete-${item.id}`}
-                          onClick={() => onDeleteLink(item.id)}
-                          title="Hapus dari database"
-                          className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
+                          <button
+                            type="button"
+                            id={`btn-delete-${item.id}`}
+                            onClick={() => onDeleteLink(item.id)}
+                            title="Hapus dari database"
+                            className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 );
               })

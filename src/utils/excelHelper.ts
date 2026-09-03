@@ -309,6 +309,33 @@ export function exportToExcel(items: LinkItem[], filename = 'Management_Link_Exp
   XLSX.writeFile(workbook, filename);
 }
 
+export function exportToCsv(items: LinkItem[], filename = 'Selected_Links_Export.csv') {
+  const exportData = items.map(item => ({
+    Nama: item.name || '',
+    Link: item.link,
+    Tag: item.tag || '',
+    Status: item.status,
+    Output: item.output,
+    Region: item.region,
+    Counta: item.counta,
+    Note: item.note,
+    Diperbarui: item.diperbarui,
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(exportData);
+  const csvContent = XLSX.utils.sheet_to_csv(worksheet);
+  // Prepend UTF-8 BOM for perfect Microsoft Excel and spreadsheet software compatibility
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename.endsWith('.csv') ? filename : `${filename}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 export function downloadTemplateExcel() {
   const templateData = [
     {

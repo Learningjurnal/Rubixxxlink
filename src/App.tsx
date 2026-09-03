@@ -33,7 +33,7 @@ import { AuthModal } from './components/AuthModal';
 import { ExtractLinkModal } from './components/ExtractLinkModal';
 import { AnalyticsCharts } from './components/AnalyticsCharts';
 import { ToastContainer, ToastMessage } from './components/Toast';
-import { exportToExcel, downloadTemplateExcel, formatDateNow } from './utils/excelHelper';
+import { exportToExcel, exportToCsv, downloadTemplateExcel, formatDateNow } from './utils/excelHelper';
 import { isWithinPeriod, formatToISODate } from './utils/dateHelper';
 import { checkSingleUrlStatus } from './utils/urlChecker';
 import {
@@ -429,6 +429,13 @@ export default function App() {
     addToast('info', `${selectedIds.size} link berhasil disalin ke clipboard.`);
   };
 
+  const handleBatchExportCsv = () => {
+    const selectedItems = items.filter(i => selectedIds.has(i.id));
+    if (selectedItems.length === 0) return;
+    exportToCsv(selectedItems, `Selected_Links_${selectedItems.length}_Export.csv`);
+    addToast('success', `${selectedItems.length} tautan terpilih berhasil diekspor ke file CSV.`);
+  };
+
   const handleBatchDeleteSelected = async () => {
     const ids = Array.from(selectedIds) as string[];
     setItems(prev => prev.filter(i => !selectedIds.has(i.id)));
@@ -808,6 +815,7 @@ export default function App() {
           onOpenSelected={handleBatchOpenSelected}
           onCopySelected={handleBatchCopySelected}
           onDeleteSelected={handleBatchDeleteSelected}
+          onExportSelectedCsv={handleBatchExportCsv}
           onCheckStatusSelected={handleBatchCheckStatus}
           isCheckingStatus={isCheckingStatus}
           checkingProgress={checkingProgress}
