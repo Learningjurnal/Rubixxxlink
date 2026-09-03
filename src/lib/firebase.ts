@@ -26,23 +26,42 @@ import {
 } from 'firebase/firestore';
 import { LinkItem, AppSettings } from '../types';
 
-// Safely resolve local config json if present (file is ignored in git for security)
+// Safely resolve local config json if present
 const configModules = import.meta.glob('../../firebase-applet-config.json', { eager: true });
 const rawFirebaseConfig = (configModules['../../firebase-applet-config.json'] as { default?: Record<string, string> })?.default || {};
 
-// Construct Firebase configuration with priority given to environment variables
-const firebaseConfig = {
-  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY as string) || rawFirebaseConfig.apiKey || '',
-  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string) || rawFirebaseConfig.authDomain || '',
-  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID as string) || rawFirebaseConfig.projectId || '',
-  firestoreDatabaseId: (import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID as string) || rawFirebaseConfig.firestoreDatabaseId || '',
-  storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string) || rawFirebaseConfig.storageBucket || '',
-  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string) || rawFirebaseConfig.messagingSenderId || '',
-  appId: (import.meta.env.VITE_FIREBASE_APP_ID as string) || rawFirebaseConfig.appId || '',
+// Embedded default public Firebase client configuration for seamless GitHub / Web deployment
+const DEFAULT_FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyAjO1QrHyIuR8T0NM07NWxAgbwjnrbSYXk',
+  authDomain: 'zinc-snowfall-6lcf1.firebaseapp.com',
+  projectId: 'zinc-snowfall-6lcf1',
+  firestoreDatabaseId: 'ai-studio-linkmanagementda-6268afbb-4df8-4a7c-a72e-1cc23fc1e26b',
+  storageBucket: 'zinc-snowfall-6lcf1.firebasestorage.app',
+  messagingSenderId: '1097630283503',
+  appId: '1:1097630283503:web:eedb1b5fafd56ac16b4d1a',
 };
 
-// Initialize Firebase App safely
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+// Construct Firebase configuration with priority: ENV -> local JSON -> default config
+const firebaseConfig = {
+  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY as string) || rawFirebaseConfig.apiKey || DEFAULT_FIREBASE_CONFIG.apiKey,
+  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string) || rawFirebaseConfig.authDomain || DEFAULT_FIREBASE_CONFIG.authDomain,
+  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID as string) || rawFirebaseConfig.projectId || DEFAULT_FIREBASE_CONFIG.projectId,
+  firestoreDatabaseId: (import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID as string) || rawFirebaseConfig.firestoreDatabaseId || DEFAULT_FIREBASE_CONFIG.firestoreDatabaseId,
+  storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string) || rawFirebaseConfig.storageBucket || DEFAULT_FIREBASE_CONFIG.storageBucket,
+  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string) || rawFirebaseConfig.messagingSenderId || DEFAULT_FIREBASE_CONFIG.messagingSenderId,
+  appId: (import.meta.env.VITE_FIREBASE_APP_ID as string) || rawFirebaseConfig.appId || DEFAULT_FIREBASE_CONFIG.appId,
+};
+
+// Initialize Firebase App safely with fallback if config is incomplete
+let app: ReturnType<typeof initializeApp>;
+try {
+  const dummyConfig = { apiKey: 'dummy-api-key', projectId: 'dummy-project' };
+  const effectiveConfig = firebaseConfig.apiKey && firebaseConfig.projectId ? firebaseConfig : dummyConfig;
+  app = getApps().length === 0 ? initializeApp(effectiveConfig) : getApp();
+} catch (e) {
+  console.warn('Firebase initialization warning:', e);
+  app = getApps().length > 0 ? getApp() : initializeApp({ apiKey: 'dummy-api-key', projectId: 'dummy-project' });
+}
 
 export const auth = getAuth(app);
 
@@ -58,7 +77,11 @@ function createFirestoreInstance() {
       dbId
     );
   } catch {
-    return dbId ? getFirestore(app, dbId) : getFirestore(app);
+    try {
+      return dbId ? getFirestore(app, dbId) : getFirestore(app);
+    } catch {
+      return getFirestore(app);
+    }
   }
 }
 
