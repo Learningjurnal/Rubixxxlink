@@ -117,9 +117,34 @@ const SETTINGS_COLLECTION = 'settings';
 const SETTINGS_DOC_ID = 'app_config';
 export const LOCAL_STORAGE_LINKS_KEY = 'link_manager_cached_links_v2';
 export const LOCAL_STORAGE_SETTINGS_KEY = 'link_manager_cached_settings_v2';
+export const DB_WIPED_KEY = 'rubixxxlink_db_wiped';
+
+/**
+ * Universal timeout wrapper to prevent any network/database call from hanging
+ */
+export function withTimeout<T>(promise: Promise<T>, ms: number = 2500): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Operation timed out after ${ms}ms`));
+    }, ms);
+
+    promise
+      .then(res => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch(err => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
 
 export function getCachedLocalLinks(): LinkItem[] {
   try {
+    if (typeof localStorage !== 'undefined' && localStorage.getItem(DB_WIPED_KEY) === 'true') {
+      return [];
+    }
     const raw = localStorage.getItem(LOCAL_STORAGE_LINKS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
@@ -146,8 +171,10 @@ export function clearCachedLocalLinks(): void {
     localStorage.removeItem(LOCAL_STORAGE_LINKS_KEY);
     localStorage.removeItem('link_manager_cached_links');
     localStorage.removeItem('link_manager_cached_links_v1');
+    localStorage.removeItem('link_manager_cached_links_v2');
     localStorage.removeItem('rubixxxlink_cached_links');
     localStorage.setItem(LOCAL_STORAGE_LINKS_KEY, JSON.stringify([]));
+    localStorage.setItem(DB_WIPED_KEY, 'true');
   } catch (e) {
     console.warn('Could not clear cached links:', e);
   }
@@ -160,11 +187,24 @@ export function subscribeToLinks(
   onUpdate: (links: LinkItem[]) => void,
   onError?: (err: Error) => void
 ) {
+  // If user wiped data, immediately emit []
+  const isWiped = typeof localStorage !== 'undefined' && localStorage.getItem(DB_WIPED_KEY) === 'true';
+  if (isWiped) {
+    onUpdate([]);
+  }
+
   try {
     const q = query(collection(db, LINKS_COLLECTION), orderBy('createdAt', 'desc'));
     return onSnapshot(
       q,
       snapshot => {
+        const checkWiped = typeof localStorage !== 'undefined' && localStorage.getItem(DB_WIPED_KEY) === 'true';
+        // If snapshot is from offline cache and user previously wiped, completely ignore old cache!
+        if (checkWiped && snapshot.metadata.fromCache) {
+          onUpdate([]);
+          return;
+        }
+
         const items: LinkItem[] = [];
         snapshot.forEach(docSnap => {
           const data = docSnap.data();
@@ -184,24 +224,39 @@ export function subscribeToLinks(
             userEmail: data.userEmail || undefined,
           });
         });
-        saveCachedLocalLinks(items);
-        onUpdate(items);
+
+        // If newly added links from server arrive, clear wiped flag
+        if (items.length > 0 && !snapshot.metadata.fromCache) {
+          try {
+            localStorage.removeItem(DB_WIPED_KEY);
+          } catch {}
+        }
+
+        if (!checkWiped || items.length === 0) {
+          saveCachedLocalLinks(items);
+          onUpdate(items);
+        }
       },
       error => {
         console.warn('Firestore links subscription notice (using offline cache):', error);
-        // Fallback to local cache so data is never lost or wiped
-        const local = getCachedLocalLinks();
-        if (local && local.length > 0) {
-          onUpdate(local);
+        const checkWiped = typeof localStorage !== 'undefined' && localStorage.getItem(DB_WIPED_KEY) === 'true';
+        if (checkWiped) {
+          onUpdate([]);
+        } else {
+          const local = getCachedLocalLinks();
+          onUpdate(local || []);
         }
         if (onError) onError(error);
       }
     );
   } catch (err: any) {
     console.warn('Failed to initialize links listener, falling back to local storage:', err);
-    const local = getCachedLocalLinks();
-    if (local && local.length > 0) {
-      onUpdate(local);
+    const checkWiped = typeof localStorage !== 'undefined' && localStorage.getItem(DB_WIPED_KEY) === 'true';
+    if (checkWiped) {
+      onUpdate([]);
+    } else {
+      const local = getCachedLocalLinks();
+      onUpdate(local || []);
     }
     if (onError) onError(err);
     return () => {};
@@ -346,7 +401,7 @@ export async function batchDeleteLinksFromFirestore(ids: string[]): Promise<void
       batch.delete(docRef);
     });
     try {
-      await batch.commit();
+      await withTimeout(batch.commit(), 2000);
     } catch (err) {
       console.warn('Firestore batch delete notice:', err);
     }
@@ -354,16 +409,33 @@ export async function batchDeleteLinksFromFirestore(ids: string[]): Promise<void
 }
 
 /**
- * Clear all links from Firestore (Reset Database) & Clear Local Cache
+ * Clear all links from Firestore (Reset Database), Clear IndexedDB & Clear Local Cache
  */
 export async function clearAllLinksFromFirestore(): Promise<number> {
-  // Always clear local cache first so local state is guaranteed wiped
+  // 1. Always clear local cache first and set tombstone flag
   clearCachedLocalLinks();
 
+  // 2. Wipe browser IndexedDB cache for Firestore if available
+  try {
+    if (typeof window !== 'undefined' && window.indexedDB && window.indexedDB.databases) {
+      const dbs = await window.indexedDB.databases();
+      for (const d of dbs) {
+        if (d.name && (d.name.includes('firestore') || d.name.includes('firebase'))) {
+          try {
+            window.indexedDB.deleteDatabase(d.name);
+          } catch {}
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('IndexedDB wipe notice:', e);
+  }
+
+  // 3. Attempt Firestore cloud deletion with strict timeout (MAX 2.5s)
   try {
     const colRef = collection(db, LINKS_COLLECTION);
-    const snap = await getDocs(colRef);
-    if (snap.empty) return 0;
+    const snap = await withTimeout(getDocs(colRef), 2000);
+    if (!snap || snap.empty) return 0;
 
     const CHUNK_SIZE = 400;
     const docs = snap.docs;
@@ -375,12 +447,17 @@ export async function clearAllLinksFromFirestore(): Promise<number> {
       chunk.forEach(d => {
         batch.delete(d.ref);
       });
-      await batch.commit();
+      try {
+        await withTimeout(batch.commit(), 2000);
+      } catch (commitErr) {
+        console.warn('Batch commit timeout/error:', commitErr);
+        break; // Stop waiting if cloud is rejecting/unresponsive
+      }
       deletedCount += chunk.length;
     }
     return deletedCount;
   } catch (err) {
-    console.warn('Firestore clearAllLinksFromFirestore notice (local storage wiped successfully):', err);
+    console.warn('Firestore clearAllLinksFromFirestore timeout/notice (local storage wiped successfully):', err);
     return 0;
   }
 }

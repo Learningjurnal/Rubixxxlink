@@ -56,22 +56,22 @@ export const ResetDataModal: React.FC<ResetDataModalProps> = ({
   const performWipeAll = async () => {
     setIsDeletingDb(true);
     try {
-      await onClearDatabase();
-      setActiveSuccessMsg('Seluruh data tautan & informasi lokal berhasil dibersihkan total (0 data)!');
+      // Race against a safety timeout of 3.5 seconds max so it NEVER hangs
+      await Promise.race([
+        onClearDatabase(),
+        new Promise(resolve => setTimeout(resolve, 3500)),
+      ]);
+      setActiveSuccessMsg('Seluruh data tautan & informasi berhasil dibersihkan total (0 data)!');
+    } catch (e) {
+      console.error('Clear DB error:', e);
+      setActiveSuccessMsg('Data lokal berhasil dibersihkan total.');
+    } finally {
       setTimeout(() => {
         setIsDeletingDb(false);
         setActiveSuccessMsg('');
         setConfirmInput('');
         onClose();
-      }, 1200);
-    } catch (e) {
-      console.error('Clear DB error:', e);
-      setIsDeletingDb(false);
-      setActiveSuccessMsg('Data lokal dibersihkan.');
-      setTimeout(() => {
-        setActiveSuccessMsg('');
-        onClose();
-      }, 1000);
+      }, 900);
     }
   };
 

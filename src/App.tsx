@@ -614,6 +614,10 @@ export default function App() {
     updatedCount: number,
     skippedDuplicatesCount: number
   ) => {
+    try {
+      localStorage.removeItem('rubixxxlink_db_wiped');
+    } catch {}
+
     if (skippedDuplicatesCount > 0) {
       setDuplicatesPreventedCount(prev => prev + skippedDuplicatesCount);
     }
@@ -648,6 +652,10 @@ export default function App() {
 
   // Add Manual Links handler with Firestore
   const handleAddLinks = async (newLinks: Omit<LinkItem, 'id'>[], skippedCount: number) => {
+    try {
+      localStorage.removeItem('rubixxxlink_db_wiped');
+    } catch {}
+
     if (skippedCount > 0) {
       setDuplicatesPreventedCount(prev => prev + skippedCount);
     }
