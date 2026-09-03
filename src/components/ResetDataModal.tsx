@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Loader2,
   Database,
+  Sparkles,
 } from 'lucide-react';
 
 interface ResetDataModalProps {
@@ -52,22 +53,38 @@ export const ResetDataModal: React.FC<ResetDataModalProps> = ({
     }, 1200);
   };
 
-  const handleClearDbClick = async () => {
-    if (confirmInput.trim().toUpperCase() !== 'HAPUS') return;
+  const performWipeAll = async () => {
     setIsDeletingDb(true);
     try {
       await onClearDatabase();
-      setActiveSuccessMsg(`Database berhasil dikosongkan (${totalLinksCount} data dibersihkan)!`);
+      setActiveSuccessMsg('Seluruh data tautan & informasi lokal berhasil dibersihkan total (0 data)!');
       setTimeout(() => {
         setIsDeletingDb(false);
         setActiveSuccessMsg('');
         setConfirmInput('');
         onClose();
-      }, 1500);
+      }, 1200);
     } catch (e) {
-      console.error(e);
+      console.error('Clear DB error:', e);
       setIsDeletingDb(false);
+      setActiveSuccessMsg('Data lokal dibersihkan.');
+      setTimeout(() => {
+        setActiveSuccessMsg('');
+        onClose();
+      }, 1000);
     }
+  };
+
+  const handleDirectWipeClick = async () => {
+    if (!window.confirm('PERINGATAN: Apakah Anda yakin ingin MENGHAPUS SEMUA data tautan & informasi yang ada? Seluruh data lokal dan database akan dikosongkan total.')) {
+      return;
+    }
+    await performWipeAll();
+  };
+
+  const handleTypedWipeClick = async () => {
+    if (confirmInput.trim().toUpperCase() !== 'HAPUS') return;
+    await performWipeAll();
   };
 
   return (
@@ -89,10 +106,10 @@ export const ResetDataModal: React.FC<ResetDataModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                Pusat Reset Data & Database
+                Pusat Reset & Pembersihan Data
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Kelola pembersihan filter, opsi konfigurasi, atau reset database total
+                Hapus atau reset data tautan, filter, opsi konfigurasi, dan database total
               </p>
             </div>
           </div>
@@ -157,7 +174,7 @@ export const ResetDataModal: React.FC<ResetDataModalProps> = ({
             </button>
           </div>
 
-          {/* Option 3: DANGER ZONE - Clear Entire Database */}
+          {/* Option 3: DANGER ZONE - Clear Entire Database & Local Storage */}
           <div className="p-4 rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/20 space-y-3">
             <div className="flex items-start gap-2.5">
               <div className="w-7 h-7 rounded-lg bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
@@ -166,21 +183,48 @@ export const ResetDataModal: React.FC<ResetDataModalProps> = ({
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-rose-900 dark:text-rose-200 text-xs">
-                    Kosongkan Seluruh Database Link (Danger Zone)
+                    Kosongkan Semua Data & Informasi (Hapus Total)
                   </span>
                   <span className="px-1.5 py-0.2 bg-rose-200 dark:bg-rose-900/80 text-rose-800 dark:text-rose-300 rounded text-[10px] font-bold">
-                    {totalLinksCount} Tautan Aktif
+                    {totalLinksCount} Tautan Terdaftar
                   </span>
                 </div>
                 <p className="text-[11px] text-rose-700 dark:text-rose-400 leading-relaxed">
-                  Tindakan ini akan menghapus permanen seluruh data tautan dari Cloud Firestore dan cache lokal. Gunakan jika Anda ingin memulai ulang dan mengunggah database 29k baru.
+                  Menghapus permanen seluruh data tautan dari penyimpanan lokal (cache peramban) dan Cloud Database. Gunakan jika Anda ingin membersihkan seluruh tautan dan memulai dari 0.
                 </p>
               </div>
             </div>
 
-            <div className="pt-2 border-t border-rose-200/60 dark:border-rose-900/40 space-y-2">
-              <label className="text-[11px] text-rose-800 dark:text-rose-300 font-semibold block">
-                Ketik kata <span className="font-mono bg-rose-200/80 dark:bg-rose-900/60 px-1 py-0.5 rounded text-rose-900 dark:text-rose-100">HAPUS</span> di bawah untuk konfirmasi:
+            {/* Quick 1-Click Clear Button */}
+            <div className="pt-2 border-t border-rose-200/60 dark:border-rose-900/40 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] text-rose-800 dark:text-rose-300 font-semibold">
+                Pembersihan Cepat (1-Klik):
+              </span>
+              <button
+                type="button"
+                id="btn-direct-wipe-database"
+                onClick={handleDirectWipeClick}
+                disabled={isDeletingDb}
+                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                {isDeletingDb ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Membersihkan...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Hapus Semua Data Sekarang</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Alternative: Confirmation typing */}
+            <div className="pt-2 border-t border-rose-200/60 dark:border-rose-900/40 space-y-1.5">
+              <label className="text-[11px] text-rose-800 dark:text-rose-300 font-medium block">
+                Atau ketik <span className="font-mono bg-rose-200/80 dark:bg-rose-900/60 px-1 py-0.5 rounded text-rose-900 dark:text-rose-100 font-bold">HAPUS</span>:
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -195,21 +239,12 @@ export const ResetDataModal: React.FC<ResetDataModalProps> = ({
                 <button
                   type="button"
                   id="btn-confirm-wipe-database"
-                  onClick={handleClearDbClick}
+                  onClick={handleTypedWipeClick}
                   disabled={confirmInput.trim().toUpperCase() !== 'HAPUS' || isDeletingDb}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl transition shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  className="px-4 py-1.5 bg-rose-700 hover:bg-rose-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
                 >
-                  {isDeletingDb ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Membersihkan...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Hapus Permanen</span>
-                    </>
-                  )}
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Konfirmasi Hapus</span>
                 </button>
               </div>
             </div>

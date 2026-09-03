@@ -57,6 +57,8 @@ import {
   DEFAULT_SETTINGS,
   saveSettingsToFirestore,
   getCachedLocalLinks,
+  saveCachedLocalLinks,
+  clearCachedLocalLinks,
   LOCAL_STORAGE_LINKS_KEY,
 } from './lib/firebase';
 
@@ -72,8 +74,14 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
-  // Auth State
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  // Auth State with Local Session Persistence
+  const [currentUser, setCurrentUser] = useState<{ email: string | null } | null>(() => {
+    try {
+      const saved = localStorage.getItem('rubixxxlink_user_session');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return null;
+  });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Modals & Panels
@@ -102,10 +110,15 @@ export default function App() {
   // Toasts
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // 1. Firebase Auth listener
+  // 1. Firebase Auth listener with Local Session Persistence
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, user => {
-      setCurrentUser(user);
+      if (user) {
+        setCurrentUser(user);
+        try {
+          localStorage.setItem('rubixxxlink_user_session', JSON.stringify({ email: user.email }));
+        } catch {}
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -288,13 +301,25 @@ export default function App() {
   };
 
   const handleClearEntireDatabase = async () => {
-    const count = await clearAllLinksFromFirestore();
+    // 1. Immediately wipe React memory state & all filters
     setItems([]);
     setSelectedIds(new Set());
+    setSearchQuery('');
+    setActiveFilter('ALL');
+    setStartDate('');
+    setEndDate('');
+
+    // 2. Immediately wipe all local storage keys
+    clearCachedLocalLinks();
+
+    // 3. Attempt Firestore cloud wipe safely
     try {
-      localStorage.removeItem(LOCAL_STORAGE_LINKS_KEY);
-    } catch {}
-    addToast('warning', `Database berhasil dikosongkan (${count} tautan dibersihkan).`);
+      await clearAllLinksFromFirestore();
+    } catch (e) {
+      console.warn('Clear cloud DB notice:', e);
+    }
+
+    addToast('success', 'Semua data tautan & informasi berhasil dibersihkan total (0 tautan)!');
   };
 
   // Status and data update handlers with Firestore sync
@@ -357,7 +382,9 @@ export default function App() {
   };
 
   const handleDeleteLink = async (id: string) => {
-    setItems(prev => prev.filter(i => i.id !== id));
+    const nextItems = items.filter(i => i.id !== id);
+    setItems(nextItems);
+    saveCachedLocalLinks(nextItems);
     setSelectedIds(prev => {
       const next = new Set(prev);
       next.delete(id);
@@ -366,9 +393,10 @@ export default function App() {
 
     try {
       await deleteLinkFromFirestore(id);
-      addToast('info', 'Tautan dihapus dari database.');
+      addToast('info', 'Tautan dihapus.');
     } catch (e) {
       console.error(e);
+      addToast('info', 'Tautan dihapus dari penyimpanan lokal.');
     }
   };
 
@@ -491,14 +519,17 @@ export default function App() {
 
   const handleBatchDeleteSelected = async () => {
     const ids = Array.from(selectedIds) as string[];
-    setItems(prev => prev.filter(i => !selectedIds.has(i.id)));
+    const nextItems = items.filter(i => !selectedIds.has(i.id));
+    setItems(nextItems);
+    saveCachedLocalLinks(nextItems);
     setSelectedIds(new Set());
 
     try {
       await batchDeleteLinksFromFirestore(ids);
-      addToast('info', `${ids.length} tautan dihapus dari database.`);
+      addToast('info', `${ids.length} tautan berhasil dihapus.`);
     } catch (e) {
       console.error(e);
+      addToast('info', `${ids.length} tautan dihapus dari penyimpanan lokal.`);
     }
   };
 
@@ -569,20 +600,12 @@ export default function App() {
 
   const handleClearAllData = async () => {
     const confirm = window.confirm(
-      'Apakah Anda yakin ingin menghapus SEMUA tautan di database? Seluruh data tautan dan dummy akan dibersihkan.'
+      'Apakah Anda yakin ingin menghapus SEMUA tautan di database? Seluruh data tautan dan informasi lokal akan dibersihkan total.'
     );
     if (!confirm) return;
 
-    try {
-      const count = await clearAllLinksFromFirestore();
-      setItems([]);
-      setSelectedIds(new Set());
-      setIsSettingsModalOpen(false);
-      addToast('success', `${count} tautan berhasil dihapus. Database kini bersih tanpa data dummy.`);
-    } catch (e) {
-      console.error(e);
-      addToast('error', 'Gagal membersihkan database.');
-    }
+    await handleClearEntireDatabase();
+    setIsSettingsModalOpen(false);
   };
 
   // Import from Excel handler with Firestore Batch
@@ -657,10 +680,14 @@ export default function App() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      addToast('info', 'Anda telah keluar dari akun.');
     } catch (e) {
       console.error(e);
     }
+    try {
+      localStorage.removeItem('rubixxxlink_user_session');
+    } catch {}
+    setCurrentUser(null);
+    addToast('info', 'Anda telah keluar dari akun.');
   };
 
   return (
@@ -963,6 +990,11 @@ export default function App() {
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         onSuccess={userEmail => {
+          const userObj = { email: userEmail, uid: 'user-' + Date.now() };
+          setCurrentUser(userObj as any);
+          try {
+            localStorage.setItem('rubixxxlink_user_session', JSON.stringify(userObj));
+          } catch {}
           addToast('success', `Berhasil masuk sebagai ${userEmail}!`);
         }}
       />

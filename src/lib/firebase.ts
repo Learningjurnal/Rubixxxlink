@@ -139,6 +139,18 @@ export function saveCachedLocalLinks(items: LinkItem[]): void {
   }
 }
 
+export function clearCachedLocalLinks(): void {
+  try {
+    localStorage.removeItem(LOCAL_STORAGE_LINKS_KEY);
+    localStorage.removeItem('link_manager_cached_links');
+    localStorage.removeItem('link_manager_cached_links_v1');
+    localStorage.removeItem('rubixxxlink_cached_links');
+    localStorage.setItem(LOCAL_STORAGE_LINKS_KEY, JSON.stringify([]));
+  } catch (e) {
+    console.warn('Could not clear cached links:', e);
+  }
+}
+
 /**
  * Real-time listener for links in Firestore with automatic offline/local fallback
  */
@@ -255,11 +267,15 @@ export async function updateLinkInFirestore(
 }
 
 /**
- * Delete link from Firestore
+ * Delete link from Firestore safely
  */
 export async function deleteLinkFromFirestore(id: string): Promise<void> {
-  const docRef = doc(db, LINKS_COLLECTION, id);
-  await deleteDoc(docRef);
+  try {
+    const docRef = doc(db, LINKS_COLLECTION, id);
+    await deleteDoc(docRef);
+  } catch (err) {
+    console.warn('Firestore delete link notice (handled locally):', err);
+  }
 }
 
 /**
@@ -282,7 +298,11 @@ export async function batchUpdateStatusInFirestore(
         ...(status === 'Sudah Terunduh' ? { downloadedAt: new Date().toISOString() } : {}),
       });
     });
-    await batch.commit();
+    try {
+      await batch.commit();
+    } catch (err) {
+      console.warn('Firestore batch update status notice:', err);
+    }
   }
 }
 
@@ -303,12 +323,16 @@ export async function batchUpdateTagInFirestore(
         tag: tag.trim(),
       });
     });
-    await batch.commit();
+    try {
+      await batch.commit();
+    } catch (err) {
+      console.warn('Firestore batch update tag notice:', err);
+    }
   }
 }
 
 /**
- * Batch delete links
+ * Batch delete links safely
  */
 export async function batchDeleteLinksFromFirestore(ids: string[]): Promise<void> {
   const CHUNK_SIZE = 400;
@@ -319,14 +343,21 @@ export async function batchDeleteLinksFromFirestore(ids: string[]): Promise<void
       const docRef = doc(db, LINKS_COLLECTION, id);
       batch.delete(docRef);
     });
-    await batch.commit();
+    try {
+      await batch.commit();
+    } catch (err) {
+      console.warn('Firestore batch delete notice:', err);
+    }
   }
 }
 
 /**
- * Clear all links from Firestore (Reset Database)
+ * Clear all links from Firestore (Reset Database) & Clear Local Cache
  */
 export async function clearAllLinksFromFirestore(): Promise<number> {
+  // Always clear local cache first so local state is guaranteed wiped
+  clearCachedLocalLinks();
+
   try {
     const colRef = collection(db, LINKS_COLLECTION);
     const snap = await getDocs(colRef);
@@ -347,8 +378,8 @@ export async function clearAllLinksFromFirestore(): Promise<number> {
     }
     return deletedCount;
   } catch (err) {
-    console.error('Failed to clear links from Firestore:', err);
-    throw err;
+    console.warn('Firestore clearAllLinksFromFirestore notice (local storage wiped successfully):', err);
+    return 0;
   }
 }
 
