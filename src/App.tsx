@@ -35,6 +35,7 @@ import { AnalyticsCharts } from './components/AnalyticsCharts';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { exportToExcel, downloadTemplateExcel, formatDateNow } from './utils/excelHelper';
 import { isWithinPeriod, formatToISODate } from './utils/dateHelper';
+import { checkSingleUrlStatus } from './utils/urlChecker';
 import {
   auth,
   onAuthStateChanged,
@@ -80,6 +81,10 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterStatus>('ALL');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // URL Status Check background process state
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [checkingProgress, setCheckingProgress] = useState<{ current: number; total: number } | null>(null);
 
   // Date Range Period Filter (Periode XXX ke XXX)
   const [startDate, setStartDate] = useState('');
@@ -437,6 +442,71 @@ export default function App() {
     }
   };
 
+  // Background Process: Ping selected URLs and flag 404 errors
+  const handleBatchCheckStatus = async () => {
+    const selectedItems = items.filter(i => selectedIds.has(i.id));
+    if (selectedItems.length === 0) return;
+
+    setIsCheckingStatus(true);
+    setCheckingProgress({ current: 0, total: selectedItems.length });
+    addToast('info', `Mengecek status ${selectedItems.length} tautan di latar belakang...`);
+
+    const flagged404Ids: string[] = [];
+    const today = formatDateNow();
+
+    for (let index = 0; index < selectedItems.length; index++) {
+      const item = selectedItems[index];
+      setCheckingProgress({ current: index + 1, total: selectedItems.length });
+
+      const checkResult = await checkSingleUrlStatus(item.link);
+
+      if (checkResult.is404) {
+        flagged404Ids.push(item.id);
+        const updatedNote = item.note ? `${item.note} | 404 Not Found` : '404 Not Found (Web Inactive)';
+
+        // Update local state immediately
+        setItems(prev =>
+          prev.map(i =>
+            i.id === item.id
+              ? {
+                  ...i,
+                  status: 'Blank',
+                  note: updatedNote,
+                  diperbarui: today,
+                }
+              : i
+          )
+        );
+
+        // Sync with Firestore
+        try {
+          await updateLinkInFirestore(item.id, {
+            status: 'Blank',
+            note: updatedNote,
+            diperbarui: today,
+          });
+        } catch (err) {
+          console.error(`Failed to update Firestore for item ${item.id}:`, err);
+        }
+      }
+    }
+
+    setIsCheckingStatus(false);
+    setCheckingProgress(null);
+
+    if (flagged404Ids.length > 0) {
+      addToast(
+        'warning',
+        `Pemeriksaan Selesai! ${flagged404Ids.length} dari ${selectedItems.length} link mengembalikan Error 404 dan telah ditandai sebagai 'Blank' / '404 Not Found'.`
+      );
+    } else {
+      addToast(
+        'success',
+        `Pemeriksaan Selesai! Seluruh ${selectedItems.length} link terpilih dalam keadaan aktif (bebas 404).`
+      );
+    }
+  };
+
   const handleClearAllData = async () => {
     const confirm = window.confirm(
       'Apakah Anda yakin ingin menghapus SEMUA tautan di database? Seluruh data tautan dan dummy akan dibersihkan.'
@@ -738,6 +808,9 @@ export default function App() {
           onOpenSelected={handleBatchOpenSelected}
           onCopySelected={handleBatchCopySelected}
           onDeleteSelected={handleBatchDeleteSelected}
+          onCheckStatusSelected={handleBatchCheckStatus}
+          isCheckingStatus={isCheckingStatus}
+          checkingProgress={checkingProgress}
           availableTags={Array.from(new Set(items.map(i => i.tag).filter(Boolean))) as string[]}
         />
 

@@ -8,7 +8,8 @@ import {
   Tag,
   Check,
   X,
-  Sparkles,
+  SearchCheck,
+  Loader2,
 } from 'lucide-react';
 import { LinkStatus } from '../types';
 
@@ -20,6 +21,9 @@ interface BatchActionsBarProps {
   onOpenSelected: () => void;
   onCopySelected: () => void;
   onDeleteSelected: () => void;
+  onCheckStatusSelected?: () => void;
+  isCheckingStatus?: boolean;
+  checkingProgress?: { current: number; total: number } | null;
   availableTags?: string[];
 }
 
@@ -33,6 +37,9 @@ export const BatchActionsBar: React.FC<BatchActionsBarProps> = ({
   onOpenSelected,
   onCopySelected,
   onDeleteSelected,
+  onCheckStatusSelected,
+  isCheckingStatus = false,
+  checkingProgress = null,
   availableTags = [],
 }) => {
   const [isTagPopoverOpen, setIsTagPopoverOpen] = useState(false);
@@ -86,6 +93,33 @@ export const BatchActionsBar: React.FC<BatchActionsBarProps> = ({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 relative">
+        {/* Check Status (Ping 404) Button */}
+        {onCheckStatusSelected && (
+          <button
+            type="button"
+            id="btn-batch-check-status"
+            onClick={onCheckStatusSelected}
+            disabled={isCheckingStatus}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl text-white transition shadow-xs cursor-pointer ${
+              isCheckingStatus
+                ? 'bg-amber-600/80 cursor-wait'
+                : 'bg-amber-600 hover:bg-amber-500'
+            }`}
+            title="Ping URL terpilih di latar belakang dan tandai tautan yang 404 Not Found"
+          >
+            {isCheckingStatus ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-100" />
+            ) : (
+              <SearchCheck className="w-3.5 h-3.5 text-amber-200" />
+            )}
+            <span>
+              {isCheckingStatus && checkingProgress
+                ? `Mengecek (${checkingProgress.current}/${checkingProgress.total})...`
+                : 'Cek Status (Ping 404)'}
+            </span>
+          </button>
+        )}
+
         {/* Tandai Sudah Terunduh */}
         <button
           type="button"
