@@ -1,0 +1,93 @@
+{
+  "entities": {
+    "Link": {
+      "title": "Link",
+      "description": "Represents a stored bookmark or download link record",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Label or name of the link"
+        },
+        "link": {
+          "type": "string",
+          "description": "Full URL destination"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current processing or download status"
+        },
+        "output": {
+          "type": "string",
+          "description": "Output method (e.g. Single, Batch, Bulk)"
+        },
+        "region": {
+          "type": "string",
+          "description": "Region classification (e.g. LIVE, ASIA, US, EU)"
+        },
+        "counta": {
+          "type": "number",
+          "description": "Order or count index"
+        },
+        "note": {
+          "type": "string",
+          "description": "Additional notes or remarks"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Category or grouping tag"
+        },
+        "diperbarui": {
+          "type": "string",
+          "description": "Formatted last modified timestamp"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Creation timestamp in milliseconds"
+        },
+        "downloadedAt": {
+          "type": "string",
+          "description": "ISO timestamp when marked as downloaded"
+        },
+        "userEmail": {
+          "type": "string",
+          "description": "Email of user who created or owns the item"
+        }
+      },
+      "required": ["link"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Application configurable dropdowns and options",
+      "type": "object",
+      "properties": {
+        "statusOptions": {
+          "type": "array",
+          "description": "List of available status labels"
+        },
+        "outputOptions": {
+          "type": "array",
+          "description": "List of available output format options"
+        },
+        "regionOptions": {
+          "type": "array",
+          "description": "List of available region options"
+        },
+        "notePresets": {
+          "type": "array",
+          "description": "Quick pick list for notes"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/links/{linkId}": {
+      "schema": "Link",
+      "description": "Collection of link records"
+    },
+    "/settings/{settingId}": {
+      "schema": "Settings",
+      "description": "Application settings document"
+    }
+  }
+}

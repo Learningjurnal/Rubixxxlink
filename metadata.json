@@ -1,0 +1,8 @@
+{
+  "name": "Link Management Dashboard",
+  "description": "Dashboard manajemen link download dengan import Excel, pelacakan status unduhan, dan pencegahan duplikasi data.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,343 @@
+import React, { useState } from 'react';
+import { X, Link2, Sparkles, Check, ArrowRight, RefreshCw, AlertCircle, FileText } from 'lucide-react';
+import { LinkItem, ExtractedLinkResult } from '../types';
+import { extractLinkFromText, extractLinksFromMultiLineText } from '../utils/linkExtractor';
+import { formatDateNow } from '../utils/excelHelper';
+import { addLinkToFirestore, updateLinkInFirestore } from '../lib/firebase';
+
+interface ExtractLinkModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  existingItems: LinkItem[];
+  onNotify: (msg: string, type: 'success' | 'info' | 'error') => void;
+}
+
+export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
+  isOpen,
+  onClose,
+  existingItems,
+  onNotify,
+}) => {
+  const [activeTab, setActiveTab] = useState<'newText' | 'scanExisting'>('newText');
+  const [rawTextInput, setRawTextInput] = useState(
+    `Video Episode 1 - https://firestream.to/v/sampleEp1\n[Download Episode 2 Full HD](https://listeamed.net/e/sampleEp2)\n<a href="https://file-upload.com/sample3">Episode 3 Final</a>\nBerkas Batch 4: https://example.com/batch4`
+  );
+  const [extractedList, setExtractedList] = useState<ExtractedLinkResult[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Scan existing database items for embedded links
+  const existingEmbeddedItems = React.useMemo(() => {
+    return existingItems.filter(item => {
+      // Check if item's link or name has embedded markers
+      const inLink = extractLinkFromText(item.link);
+      const inName = item.name ? extractLinkFromText(item.name) : { url: null, name: '' };
+      return (
+        (inLink.url && inLink.url !== item.link) ||
+        (inName.url && inName.url !== item.link) ||
+        item.link.includes('[') ||
+        item.link.includes('<a') ||
+        item.link.includes(' ')
+      );
+    });
+  }, [existingItems]);
+
+  if (!isOpen) return null;
+
+  const handleParseText = () => {
+    const results = extractLinksFromMultiLineText(rawTextInput);
+    setExtractedList(results);
+  };
+
+  const handleImportExtracted = async () => {
+    const validItems = extractedList.filter(i => i.status === 'valid' && i.extractedUrl);
+    if (validItems.length === 0) {
+      onNotify('Tidak ada link valid yang dapat diimpor.', 'error');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      let importedCount = 0;
+      for (const item of validItems) {
+        await addLinkToFirestore({
+          name: item.extractedName || '',
+          link: item.extractedUrl,
+          status: 'Blank',
+          output: 'Single',
+          region: 'LIVE',
+          counta: 1,
+          note: '',
+          diperbarui: formatDateNow(),
+          createdAt: Date.now(),
+        });
+        importedCount++;
+      }
+      onNotify(`Berhasil mengekstrak dan menyimpan ${importedCount} link baru ke database!`, 'success');
+      onClose();
+    } catch (e: any) {
+      console.error('Extraction import error:', e);
+      onNotify('Gagal menyimpan hasil ekstraksi ke database.', 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleFixExistingItems = async () => {
+    if (existingEmbeddedItems.length === 0) return;
+    setIsProcessing(true);
+    try {
+      let fixedCount = 0;
+      for (const item of existingEmbeddedItems) {
+        let cleanUrl = item.link;
+        let cleanName = item.name || '';
+
+        const fromLink = extractLinkFromText(item.link);
+        if (fromLink.url) {
+          cleanUrl = fromLink.url;
+          if (!cleanName && fromLink.name) cleanName = fromLink.name;
+        }
+
+        if (item.name) {
+          const fromName = extractLinkFromText(item.name);
+          if (fromName.url) {
+            cleanUrl = fromName.url;
+            if (fromName.name) cleanName = fromName.name;
+          }
+        }
+
+        await updateLinkInFirestore(item.id, {
+          link: cleanUrl,
+          name: cleanName,
+          diperbarui: formatDateNow(),
+        });
+        fixedCount++;
+      }
+      onNotify(`Berhasil memperbaiki ${fixedCount} data yang memiliki link tersemat di nama!`, 'success');
+      onClose();
+    } catch (e) {
+      console.error('Failed to fix existing items:', e);
+      onNotify('Gagal memperbaiki data tautan.', 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+      <div
+        id="extract-link-modal-card"
+        className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh] border border-slate-200"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4.5 bg-slate-900 text-white border-b border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-xs">
+              <Sparkles className="w-5 h-5 text-amber-300" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base leading-tight">
+                Ekstraktor Tautan Tertanam (Embedded Links)
+              </h3>
+              <p className="text-xs text-slate-300">
+                Ubah link yang tertanam di dalam nama atau teks menjadi tautan URL aktif
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Tab switch */}
+        <div className="flex border-b border-slate-200 bg-slate-50/70 p-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('newText')}
+            className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 ${
+              activeTab === 'newText'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Ekstrak dari Teks / Nama Baru</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('scanExisting')}
+            className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 ${
+              activeTab === 'scanExisting'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>
+              Perbaiki Data Database ({existingEmbeddedItems.length})
+            </span>
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="p-6 overflow-y-auto flex-1 space-y-4">
+          {activeTab === 'newText' ? (
+            <>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Tempelkan Teks atau Nama Berisi Tautan
+                </label>
+                <p className="text-xs text-slate-500 mb-2">
+                  Mendukung format Markdown <code>[Nama](https://...)</code>, tag HTML <code>&lt;a href="..."&gt;</code>, atau teks biasa bercampur URL.
+                </p>
+                <textarea
+                  rows={5}
+                  value={rawTextInput}
+                  onChange={e => setRawTextInput(e.target.value)}
+                  placeholder="Tempel teks di sini..."
+                  className="w-full p-3 text-xs border border-slate-200 rounded-xl bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-600 outline-none font-mono"
+                />
+              </div>
+
+              <div className="flex justify-between items-center">
+                <button
+                  type="button"
+                  onClick={handleParseText}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-2"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Deteksi & Ekstrak Link Sekarang</span>
+                </button>
+                <span className="text-xs text-slate-500 font-medium">
+                  {extractedList.length > 0 && `${extractedList.filter(i => i.status === 'valid').length} link terdeteksi`}
+                </span>
+              </div>
+
+              {/* Extraction Preview Table */}
+              {extractedList.length > 0 && (
+                <div className="border border-slate-200 rounded-2xl overflow-hidden mt-3">
+                  <div className="bg-slate-100/80 px-3 py-2 text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                    Hasil Pratinjau Ekstraksi
+                  </div>
+                  <div className="max-h-52 overflow-y-auto divide-y divide-slate-100 text-xs">
+                    {extractedList.map((item, idx) => (
+                      <div key={idx} className="p-2.5 flex items-center justify-between gap-3 bg-white hover:bg-slate-50">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 font-semibold text-slate-800 truncate">
+                            <span className="text-indigo-600">Nama:</span>
+                            <span>{item.extractedName || '(Tanpa Nama)'}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 truncate mt-0.5 flex items-center gap-1">
+                            <Link2 className="w-3 h-3 text-indigo-500 flex-shrink-0" />
+                            <span className="font-mono text-indigo-600 underline truncate">
+                              {item.extractedUrl || '(Link tidak ditemukan)'}
+                            </span>
+                          </div>
+                        </div>
+                        {item.status === 'valid' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 flex-shrink-0">
+                            Valid
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 flex-shrink-0">
+                            Gagal
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div>
+              <div className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-2xl mb-4">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-xs font-bold text-indigo-900">
+                      Pindai Otomatis Database
+                    </h4>
+                    <p className="text-xs text-indigo-700 mt-1">
+                      Fitur ini memeriksa seluruh data di database yang kolom link-nya masih tertanam teks nama atau format Markdown/HTML, dan secara otomatis memisahkannya menjadi nama bersih dan URL yang dapat langsung diunduh.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {existingEmbeddedItems.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 text-xs">
+                  <Check className="w-8 h-8 mx-auto text-emerald-500 mb-2" />
+                  <p className="font-bold text-slate-800">Semua Link Sudah Bersih</p>
+                  <p className="text-slate-400 mt-0.5">
+                    Tidak ditemukan link tertanam di dalam nama pada database saat ini.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-slate-700">
+                    Ditemukan {existingEmbeddedItems.length} data dengan link tertanam:
+                  </p>
+                  <div className="max-h-56 overflow-y-auto space-y-2">
+                    {existingEmbeddedItems.map(item => {
+                      const extracted = extractLinkFromText(item.link);
+                      return (
+                        <div
+                          key={item.id}
+                          className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs"
+                        >
+                          <div className="text-slate-500 line-through truncate text-[11px]">
+                            Asli: {item.link}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-indigo-700 font-bold mt-1 truncate">
+                            <ArrowRight className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
+                            <span className="truncate">URL: {extracted.url || item.link}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-t border-slate-200">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition"
+          >
+            Batal
+          </button>
+
+          {activeTab === 'newText' ? (
+            <button
+              type="button"
+              onClick={handleImportExtracted}
+              disabled={extractedList.filter(i => i.status === 'valid').length === 0 || isProcessing}
+              className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-200 transition flex items-center gap-2 disabled:opacity-50"
+            >
+              <Check className="w-4 h-4" />
+              <span>Simpan ke Database</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleFixExistingItems}
+              disabled={existingEmbeddedItems.length === 0 || isProcessing}
+              className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-200 transition flex items-center gap-2 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} />
+              <span>Perbaiki Data Database</span>
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
