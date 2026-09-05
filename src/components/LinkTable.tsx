@@ -23,8 +23,12 @@ import {
   SlidersHorizontal,
   Loader2,
   MousePointerClick,
+  Globe,
+  LayoutGrid,
+  RotateCcw,
+  ListFilter,
 } from 'lucide-react';
-import { LinkItem, LinkStatus, AppSettings, SortField, SortDirection } from '../types';
+import { LinkItem, LinkStatus, AppSettings, SortField, SortDirection, TableDensity } from '../types';
 import { UrlHoverCard } from './UrlHoverCard';
 import {
   PRESET_COLORS,
@@ -54,9 +58,72 @@ const COLUMN_DEFINITIONS: { key: ColumnKey; label: string }[] = [
   { key: 'actions', label: 'Aksi Download' },
 ];
 
+/**
+ * Keyword Highlighting component: highlights matching search letters smoothly
+ */
+const HighlightText: React.FC<{ text: string; query?: string; className?: string }> = ({
+  text,
+  query,
+  className = '',
+}) => {
+  if (!query || !query.trim() || !text) {
+    return <span className={className}>{text}</span>;
+  }
+  const cleanQ = query.trim().toLowerCase();
+  const lowerText = text.toLowerCase();
+  const index = lowerText.indexOf(cleanQ);
+  if (index === -1) {
+    return <span className={className}>{text}</span>;
+  }
+
+  const before = text.substring(0, index);
+  const match = text.substring(index, index + cleanQ.length);
+  const after = text.substring(index + cleanQ.length);
+
+  return (
+    <span className={className}>
+      {before}
+      <mark className="bg-amber-300 dark:bg-amber-400/30 text-slate-900 dark:text-amber-200 px-0.5 rounded font-semibold">
+        {match}
+      </mark>
+      <HighlightText text={after} query={query} />
+    </span>
+  );
+};
+
+/**
+ * Domain Favicon thumbnail with fallback globe icon
+ */
+const DomainFavicon: React.FC<{ url: string }> = ({ url }) => {
+  const [hasError, setHasError] = useState(false);
+  const domain = useMemo(() => {
+    try {
+      const u = new URL(url);
+      return u.hostname.replace(/^www\./, '');
+    } catch {
+      return '';
+    }
+  }, [url]);
+
+  if (!domain || hasError) {
+    return <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" />;
+  }
+
+  return (
+    <img
+      src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
+      alt=""
+      onError={() => setHasError(true)}
+      className="w-3.5 h-3.5 rounded-xs shrink-0 object-contain inline-block"
+      loading="lazy"
+    />
+  );
+};
+
 interface LinkTableProps {
   items: LinkItem[];
   totalAllItemsCount: number;
+  rawAllItems?: LinkItem[];
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   onToggleSelectAll: () => void;
@@ -79,6 +146,11 @@ interface LinkTableProps {
   onEndDateChange: (date: string) => void;
   onResetPeriod: () => void;
   onSetQuickPeriod: (days: number | 'today' | 'thisMonth') => void;
+  // UI & Search integration props
+  activeFilter?: string;
+  onFilterChange?: (filter: string) => void;
+  searchQuery?: string;
+  onResetAllFilters?: () => void;
   // Loading visualization
   isLoading?: boolean;
 }
@@ -86,6 +158,7 @@ interface LinkTableProps {
 export const LinkTable: React.FC<LinkTableProps> = ({
   items,
   totalAllItemsCount,
+  rawAllItems,
   selectedIds,
   onToggleSelect,
   onToggleSelectAll,
@@ -107,12 +180,75 @@ export const LinkTable: React.FC<LinkTableProps> = ({
   onEndDateChange,
   onResetPeriod,
   onSetQuickPeriod,
+  activeFilter = 'ALL',
+  onFilterChange,
+  searchQuery = '',
+  onResetAllFilters,
   isLoading = false,
 }) => {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [tempNote, setTempNote] = useState('');
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false);
   const columnMenuRef = useRef<HTMLDivElement>(null);
+
+  // Table Density: 'compact' (padding rapat) vs 'comfortable' (padding lega)
+  const [density, setDensity] = useState<TableDensity>(() => {
+    try {
+      const saved = localStorage.getItem('rubixxxlink_table_density');
+      if (saved === 'compact' || saved === 'comfortable') return saved;
+    } catch {}
+    return 'comfortable';
+  });
+
+  const toggleDensity = (newDensity: TableDensity) => {
+    setDensity(newDensity);
+    try {
+      localStorage.setItem('rubixxxlink_table_density', newDensity);
+    } catch {}
+  };
+
+  // Real-time interactive filter chips calculation
+  const filterChips = useMemo(() => {
+    const dataSource = rawAllItems || items;
+    let blankCount = 0;
+    let downloadedCount = 0;
+    let inactiveCount = 0;
+    const customStatusCounts: Record<string, number> = {};
+
+    for (let i = 0; i < dataSource.length; i++) {
+      const it = dataSource[i];
+      const st = (it.status || '').trim();
+      if (st === 'Blank') blankCount++;
+      else if (st === 'Sudah Terunduh') downloadedCount++;
+      else if (st === 'Web Inactive' || (it.note && it.note.toLowerCase().includes('inactive'))) {
+        inactiveCount++;
+      }
+      if (st) {
+        customStatusCounts[st] = (customStatusCounts[st] || 0) + 1;
+      }
+    }
+
+    const chips: { key: string; label: string; count: number; dotColor?: string }[] = [
+      { key: 'ALL', label: 'Semua', count: dataSource.length },
+      { key: 'Blank', label: 'Blank', count: blankCount, dotColor: 'bg-rose-500' },
+      { key: 'Sudah Terunduh', label: 'Sudah Terunduh', count: downloadedCount, dotColor: 'bg-emerald-500' },
+      { key: 'Web Inactive', label: 'Web Inactive', count: inactiveCount, dotColor: 'bg-slate-400' },
+    ];
+
+    // Add extra statuses from settings if any
+    (settings.statusOptions || []).forEach(opt => {
+      if (!['Blank', 'Sudah Terunduh', 'Web Inactive'].includes(opt)) {
+        chips.push({
+          key: opt,
+          label: opt,
+          count: customStatusCounts[opt] || 0,
+          dotColor: 'bg-indigo-500',
+        });
+      }
+    });
+
+    return chips;
+  }, [rawAllItems, items, settings.statusOptions]);
 
   // Multi-selection with Shift-Click
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
@@ -340,6 +476,38 @@ export const LinkTable: React.FC<LinkTableProps> = ({
               </button>
             </div>
 
+            {/* Density Switcher: Nyaman vs Rapat */}
+            <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-0.5 shadow-2xs">
+              <button
+                type="button"
+                id="btn-density-comfortable"
+                onClick={() => toggleDensity('comfortable')}
+                title="Tampilan Nyaman (Padding Lega)"
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition flex items-center gap-1 cursor-pointer ${
+                  density === 'comfortable'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Nyaman</span>
+              </button>
+              <button
+                type="button"
+                id="btn-density-compact"
+                onClick={() => toggleDensity('compact')}
+                title="Tampilan Rapat (Data Padat)"
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition flex items-center gap-1 cursor-pointer ${
+                  density === 'compact'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <ListFilter className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Rapat</span>
+              </button>
+            </div>
+
             {/* Column Visibility Toggle Menu */}
             <div className="relative" ref={columnMenuRef}>
               <button
@@ -495,14 +663,53 @@ export const LinkTable: React.FC<LinkTableProps> = ({
             </button>
           )}
         </div>
+
+        {/* Interactive Filter Chips Bar with Real-time Counts */}
+        {onFilterChange && (
+          <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-slate-200/60 dark:border-slate-800/60 overflow-x-auto pb-0.5">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1 mr-1 shrink-0">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+              <span>Filter Cepat:</span>
+            </span>
+            {filterChips.map(chip => {
+              const isActive = activeFilter === chip.key;
+              return (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={() => onFilterChange(chip.key)}
+                  className={`px-3 py-1 text-xs font-medium rounded-full transition flex items-center gap-1.5 cursor-pointer shrink-0 border ${
+                    isActive
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs font-bold'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600 hover:bg-slate-50 dark:hover:bg-slate-700/60'
+                  }`}
+                >
+                  {chip.dotColor && !isActive && (
+                    <span className={`w-2 h-2 rounded-full ${chip.dotColor} shrink-0`} />
+                  )}
+                  <span>{chip.label}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    {chip.count.toLocaleString('id-ID')}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Spreadsheet Main Table */}
-      <div className="overflow-x-auto">
+      {/* Spreadsheet Main Table (Sticky Header with Scrollable Viewport) */}
+      <div className="overflow-x-auto max-h-[72vh] overflow-y-auto relative scrollbar-thin">
         <table className="w-full text-left border-collapse text-xs">
-          {/* Header row with modern adaptive light and dark styling */}
-          <thead>
-            <tr className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-white select-none text-[12px] font-semibold tracking-wider border-b border-slate-200 dark:border-slate-800">
+          {/* Header row with sticky glassmorphism styling */}
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-slate-100/95 dark:bg-slate-950/95 backdrop-blur-md text-slate-700 dark:text-white select-none text-[12px] font-semibold tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs">
               {/* Select All Checkbox - Custom SVG Box (No OS black square in Light Mode) */}
               <th className="py-3.5 px-3.5 w-10 text-center border-r border-slate-200 dark:border-slate-800">
                 <button
@@ -683,6 +890,17 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                     <p className="text-xs text-slate-400 dark:text-slate-500">
                       Coba sesuaikan kata kunci pencarian, filter status, atau rentang periode tanggal.
                     </p>
+                    {onResetAllFilters && (
+                      <button
+                        type="button"
+                        id="btn-reset-all-filters-empty"
+                        onClick={onResetAllFilters}
+                        className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 text-white font-semibold text-xs hover:bg-indigo-500 shadow-sm transition cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Reset Semua Filter & Pencarian</span>
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -690,6 +908,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
               paginatedItems.map((item, index) => {
                 const isSelected = selectedIds.has(item.id);
                 const isDownloaded = item.status === 'Sudah Terunduh';
+                const cellPadding = density === 'compact' ? 'py-1.5' : 'py-2.5';
 
                 return (
                   <tr
@@ -706,7 +925,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                     }`}
                   >
                     {/* Checkbox with Shift-Click Range Selection - Custom SVG Button (Integrasi Penuh Tema Terang) */}
-                    <td className="py-2.5 px-3.5 text-center border-r border-slate-100 dark:border-slate-800/80">
+                    <td className={`${cellPadding} px-3.5 text-center border-r border-slate-100 dark:border-slate-800/80`}>
                       <button
                         type="button"
                         onClick={e => handleCheckboxClick(e, item, index)}
@@ -722,10 +941,10 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                     </td>
 
                     {/* Link Column: 1 Single Clean Link (No double link underneath) */}
-                    <td className="py-2.5 px-4 border-r border-slate-100 dark:border-slate-800/80 min-w-[360px]">
+                    <td className={`${cellPadding} px-4 border-r border-slate-100 dark:border-slate-800/80 min-w-[360px]`}>
                       <div className="flex items-center justify-between gap-3 group">
                         <div className="flex items-center gap-2 truncate flex-1 min-w-0">
-                          <FileText className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                          <DomainFavicon url={item.link} />
 
                           {/* Single link with hover card integration */}
                           <UrlHoverCard
@@ -733,6 +952,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                             onCopyLink={onCopyLink}
                             onDownloadAndMark={() => onDownloadAndMark(item)}
                             isDownloaded={isDownloaded}
+                            searchQuery={searchQuery}
                           />
 
                           {item.tag && (
@@ -781,7 +1001,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                         : [displayStatus, ...settings.statusOptions];
 
                       return (
-                        <td className="py-2.5 px-3 text-center border-r border-slate-100 dark:border-slate-800/80">
+                        <td className={`${cellPadding} px-3 text-center border-r border-slate-100 dark:border-slate-800/80`}>
                           <div className="relative inline-block">
                             <select
                               value={displayStatus}
@@ -815,7 +1035,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                         : [displayOutput, ...settings.outputOptions];
 
                       return (
-                        <td className="py-2.5 px-3 text-center border-r border-slate-100 dark:border-slate-800/80">
+                        <td className={`${cellPadding} px-3 text-center border-r border-slate-100 dark:border-slate-800/80`}>
                           {onUpdateOutput ? (
                             <div className="relative inline-block">
                               <select
@@ -855,7 +1075,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                         : [displayRegion, ...settings.regionOptions];
 
                       return (
-                        <td className="py-2.5 px-3 text-center border-r border-slate-100 dark:border-slate-800/80">
+                        <td className={`${cellPadding} px-3 text-center border-r border-slate-100 dark:border-slate-800/80`}>
                           {onUpdateRegion ? (
                             <div className="relative inline-block">
                               <select
@@ -882,7 +1102,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
 
                     {/* Note (Editable) */}
                     {visibleColumns.note && (
-                      <td className="py-2.5 px-4 border-r border-slate-100 dark:border-slate-800/80">
+                      <td className={`${cellPadding} px-4 border-r border-slate-100 dark:border-slate-800/80`}>
                         {editingNoteId === item.id ? (
                           <div className="space-y-1.5">
                             <div className="flex items-center gap-1">
@@ -939,7 +1159,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                                   : 'text-slate-600 dark:text-slate-400'
                               }`}
                             >
-                              {item.note || '-'}
+                              <HighlightText text={item.note || '-'} query={searchQuery} />
                             </span>
                             <Edit2 className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition ml-1" />
                           </div>
@@ -949,14 +1169,14 @@ export const LinkTable: React.FC<LinkTableProps> = ({
 
                     {/* Diperbarui */}
                     {visibleColumns.diperbarui && (
-                      <td className="py-2.5 px-3 text-center text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap border-r border-slate-100 dark:border-slate-800/80 text-[11px]">
+                      <td className={`${cellPadding} px-3 text-center text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap border-r border-slate-100 dark:border-slate-800/80 text-[11px]`}>
                         {item.diperbarui}
                       </td>
                     )}
 
                     {/* Actions Column */}
                     {visibleColumns.actions && (
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                      <td className={`${cellPadding} px-3 text-center whitespace-nowrap`}>
                         <div className="flex items-center justify-center gap-2">
                           {isDownloaded ? (
                             <div className="flex items-center gap-1.5">

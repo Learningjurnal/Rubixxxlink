@@ -16,6 +16,7 @@ interface UrlHoverCardProps {
   onCopyLink: (link: string) => void;
   onDownloadAndMark?: () => void;
   isDownloaded?: boolean;
+  searchQuery?: string;
 }
 
 export const UrlHoverCard: React.FC<UrlHoverCardProps> = ({
@@ -23,6 +24,7 @@ export const UrlHoverCard: React.FC<UrlHoverCardProps> = ({
   onCopyLink,
   onDownloadAndMark,
   isDownloaded,
+  searchQuery = '',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [faviconError, setFaviconError] = useState(false);
@@ -68,6 +70,28 @@ export const UrlHoverCard: React.FC<UrlHoverCardProps> = ({
       ? item.name
       : item.link;
 
+  const renderHighlightedText = (text: string) => {
+    if (!searchQuery || !searchQuery.trim() || !text) return text;
+    const cleanQ = searchQuery.trim().toLowerCase();
+    const lower = text.toLowerCase();
+    const idx = lower.indexOf(cleanQ);
+    if (idx === -1) return text;
+
+    const before = text.substring(0, idx);
+    const match = text.substring(idx, idx + cleanQ.length);
+    const after = text.substring(idx + cleanQ.length);
+
+    return (
+      <>
+        {before}
+        <mark className="bg-amber-300 dark:bg-amber-400/30 text-slate-900 dark:text-amber-200 px-0.5 rounded font-bold">
+          {match}
+        </mark>
+        {after}
+      </>
+    );
+  };
+
   return (
     <div
       ref={containerRef}
@@ -93,7 +117,7 @@ export const UrlHoverCard: React.FC<UrlHoverCardProps> = ({
         }`}
         title={item.name ? `${item.name} (${item.link})` : item.link}
       >
-        {displayText}
+        {renderHighlightedText(displayText)}
       </a>
 
       {/* Popover Hover Card */}

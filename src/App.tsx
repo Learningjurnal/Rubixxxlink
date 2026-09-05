@@ -266,12 +266,17 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  const addToast = (type: 'success' | 'warning' | 'info' | 'error', message: string) => {
+  const addToast = (
+    type: 'success' | 'warning' | 'info' | 'error',
+    message: string,
+    onUndo?: () => void,
+    undoLabel?: string
+  ) => {
     const id = `${Date.now()}-${Math.random()}`;
-    setToasts(prev => [...prev, { id, type, message }]);
+    setToasts(prev => [...prev, { id, type, message, onUndo, undoLabel }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
-    }, 4500);
+    }, onUndo ? 6000 : 4500);
   };
 
   const removeToast = (id: string) => {
@@ -300,6 +305,14 @@ export default function App() {
   const handleResetPeriod = () => {
     setStartDate('');
     setEndDate('');
+  };
+
+  const handleResetAllFilters = () => {
+    setSearchQuery('');
+    setActiveFilter('ALL');
+    setStartDate('');
+    setEndDate('');
+    addToast('info', 'Semua filter dan pencarian telah direset.');
   };
 
   // Filter and Sort Items
@@ -522,9 +535,11 @@ export default function App() {
   };
 
   const handleDeleteLink = async (id: string) => {
+    const deletedItem = items.find(i => i.id === id);
     const nextItems = items.filter(i => i.id !== id);
     setItems(nextItems);
     saveCachedLocalLinks(nextItems);
+    saveLinksToIndexedDb(nextItems).catch(() => {});
     setSelectedIds(prev => {
       const next = new Set(prev);
       next.delete(id);
@@ -533,10 +548,31 @@ export default function App() {
 
     try {
       await deleteLinkFromFirestore(id);
-      addToast('info', 'Tautan dihapus.');
     } catch (e) {
       console.error(e);
-      addToast('info', 'Tautan dihapus dari penyimpanan lokal.');
+    }
+
+    if (deletedItem) {
+      const itemName =
+        deletedItem.name && deletedItem.name !== deletedItem.link
+          ? deletedItem.name
+          : deletedItem.link.replace(/^https?:\/\//, '').slice(0, 24);
+
+      addToast(
+        'info',
+        `Tautan "${itemName}" dihapus.`,
+        () => {
+          // Restore deleted link
+          setItems(prev => [deletedItem, ...prev]);
+          saveCachedLocalLinks([deletedItem, ...nextItems]);
+          saveLinksToIndexedDb([deletedItem, ...nextItems]).catch(() => {});
+          addLinkToFirestore(deletedItem).catch(() => {});
+          addToast('success', 'Penghapusan tautan berhasil dibatalkan.');
+        },
+        'Urungkan'
+      );
+    } else {
+      addToast('info', 'Tautan dihapus.');
     }
   };
 
@@ -1224,6 +1260,11 @@ export default function App() {
           onResetPeriod={handleResetPeriod}
           onSetQuickPeriod={handleSetQuickPeriod}
           onSelectSpecificIds={handleSelectSpecificIds}
+          rawAllItems={items}
+          activeFilter={activeFilter}
+          onFilterChange={setActiveFilter}
+          searchQuery={deferredSearchQuery}
+          onResetAllFilters={handleResetAllFilters}
           isLoading={isDbLoading}
         />
       </main>

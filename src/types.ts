@@ -76,3 +76,5 @@ export interface ExtractedLinkResult {
   extractedUrl: string;
   status: 'valid' | 'invalid';
 }
+
+export type TableDensity = 'compact' | 'comfortable';
