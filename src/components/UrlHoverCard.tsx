@@ -196,7 +196,7 @@ export const UrlHoverCard: React.FC<UrlHoverCardProps> = ({
                   <span className="truncate">{item.note}</span>
                 </>
               ) : (
-                <span>Counta: #{item.counta}</span>
+                <span className="text-slate-500">-</span>
               )}
             </span>
 

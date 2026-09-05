@@ -26,14 +26,20 @@ import {
 } from 'lucide-react';
 import { LinkItem, LinkStatus, AppSettings, SortField, SortDirection } from '../types';
 import { UrlHoverCard } from './UrlHoverCard';
+import {
+  PRESET_COLORS,
+  DEFAULT_STATUS_COLORS,
+  DEFAULT_OUTPUT_COLORS,
+  DEFAULT_REGION_COLORS,
+  getOptionColor,
+} from '../utils/colorHelper';
 
-export type ColumnKey = 'status' | 'output' | 'region' | 'counta' | 'note' | 'diperbarui' | 'actions';
+export type ColumnKey = 'status' | 'output' | 'region' | 'note' | 'diperbarui' | 'actions';
 
 const DEFAULT_VISIBLE_COLUMNS: Record<ColumnKey, boolean> = {
   status: true,
   output: false,
   region: false,
-  counta: false,
   note: true,
   diperbarui: true,
   actions: true,
@@ -43,7 +49,6 @@ const COLUMN_DEFINITIONS: { key: ColumnKey; label: string }[] = [
   { key: 'status', label: 'Status' },
   { key: 'output', label: 'Output' },
   { key: 'region', label: 'Region' },
-  { key: 'counta', label: 'Counta' },
   { key: 'note', label: 'Catatan (Note)' },
   { key: 'diperbarui', label: 'Diperbarui' },
   { key: 'actions', label: 'Aksi Download' },
@@ -120,7 +125,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
   // Load / persist column visibility from localStorage
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnKey, boolean>>(() => {
     try {
-      const saved = localStorage.getItem('rubixxxlink_column_visibility_v2');
+      const saved = localStorage.getItem('rubixxxlink_column_visibility_v3');
       if (saved) {
         return { ...DEFAULT_VISIBLE_COLUMNS, ...JSON.parse(saved) };
       }
@@ -165,7 +170,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
     setVisibleColumns(prev => {
       const next = { ...prev, [key]: !prev[key] };
       try {
-        localStorage.setItem('rubixxxlink_column_visibility_v2', JSON.stringify(next));
+        localStorage.setItem('rubixxxlink_column_visibility_v3', JSON.stringify(next));
       } catch {}
       return next;
     });
@@ -176,21 +181,20 @@ export const LinkTable: React.FC<LinkTableProps> = ({
       status: true,
       output: true,
       region: true,
-      counta: true,
       note: true,
       diperbarui: true,
       actions: true,
     };
     setVisibleColumns(allTrue);
     try {
-      localStorage.setItem('rubixxxlink_column_visibility', JSON.stringify(allTrue));
+      localStorage.setItem('rubixxxlink_column_visibility_v3', JSON.stringify(allTrue));
     } catch {}
   };
 
   const resetDefaultColumns = () => {
     setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
     try {
-      localStorage.setItem('rubixxxlink_column_visibility', JSON.stringify(DEFAULT_VISIBLE_COLUMNS));
+      localStorage.setItem('rubixxxlink_column_visibility_v3', JSON.stringify(DEFAULT_VISIBLE_COLUMNS));
     } catch {}
   };
 
@@ -321,10 +325,10 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                 <option value="status" className="dark:bg-slate-800 dark:text-slate-200">Status</option>
                 <option value="output" className="dark:bg-slate-800 dark:text-slate-200">Output</option>
                 <option value="region" className="dark:bg-slate-800 dark:text-slate-200">Region</option>
-                <option value="counta" className="dark:bg-slate-800 dark:text-slate-200">Counta</option>
                 <option value="note" className="dark:bg-slate-800 dark:text-slate-200">Note</option>
               </select>
               <button
+                type="button"
                 onClick={() => onSort((sortField || 'diperbarui') as SortField)}
                 title="Balik urutan (Ascending / Descending)"
                 className="p-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-indigo-700 dark:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-2xs flex items-center gap-1 cursor-pointer"
@@ -373,18 +377,22 @@ export const LinkTable: React.FC<LinkTableProps> = ({
 
                   <div className="space-y-1.5 py-1">
                     {COLUMN_DEFINITIONS.map(col => (
-                      <label
+                      <div
                         key={col.key}
+                        onClick={() => toggleColumn(col.key)}
                         className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/80 cursor-pointer text-xs select-none"
                       >
                         <span className="font-medium text-slate-700 dark:text-slate-300">{col.label}</span>
-                        <input
-                          type="checkbox"
-                          checked={visibleColumns[col.key]}
-                          onChange={() => toggleColumn(col.key)}
-                          className="rounded text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
-                        />
-                      </label>
+                        <div
+                          className={`w-4 h-4 rounded border flex items-center justify-center transition cursor-pointer shrink-0 ${
+                            visibleColumns[col.key]
+                              ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
+                              : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600'
+                          }`}
+                        >
+                          {visibleColumns[col.key] && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+                      </div>
                     ))}
                   </div>
 
@@ -410,58 +418,61 @@ export const LinkTable: React.FC<LinkTableProps> = ({
           </div>
         </div>
 
-        {/* Date Range Period Filter (Periode XXX ke XXX) */}
-        <div
-          id="period-filter-bar"
-          className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200/60 dark:border-slate-800"
-        >
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+        {/* Period Filter Bar (Rentang Tanggal Periode XXX ke XXX) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 text-xs font-semibold">
               <Calendar className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-              <span>Filter Periode Tanggal:</span>
-            </span>
+              <span>Periode Tanggal:</span>
+            </div>
 
-            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 py-1 shadow-2xs">
-              <span className="text-[11px] text-slate-400 font-medium">Dari</span>
+            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 shadow-2xs">
+              <span className="text-[11px] text-slate-400">Dari:</span>
               <input
                 type="date"
-                id="filter-start-date"
+                id="period-start-date"
                 value={startDate}
                 onChange={e => onStartDateChange(e.target.value)}
-                className="bg-transparent text-slate-700 dark:text-slate-200 text-xs font-semibold outline-none cursor-pointer"
+                className="text-xs bg-transparent text-slate-700 dark:text-slate-200 outline-none cursor-pointer font-medium"
               />
-              <span className="text-slate-400 font-bold">-</span>
-              <span className="text-[11px] text-slate-400 font-medium">Hingga</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 shadow-2xs">
+              <span className="text-[11px] text-slate-400">Hingga:</span>
               <input
                 type="date"
-                id="filter-end-date"
+                id="period-end-date"
                 value={endDate}
                 onChange={e => onEndDateChange(e.target.value)}
-                className="bg-transparent text-slate-700 dark:text-slate-200 text-xs font-semibold outline-none cursor-pointer"
+                className="text-xs bg-transparent text-slate-700 dark:text-slate-200 outline-none cursor-pointer font-medium"
               />
             </div>
 
             {/* Quick Period Buttons */}
             <div className="flex items-center gap-1">
               <button
+                type="button"
                 onClick={() => onSetQuickPeriod('today')}
                 className="px-2 py-1 text-[11px] font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-2xs cursor-pointer"
               >
                 Hari Ini
               </button>
               <button
+                type="button"
                 onClick={() => onSetQuickPeriod(7)}
                 className="px-2 py-1 text-[11px] font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-2xs cursor-pointer"
               >
                 7 Hari
               </button>
               <button
+                type="button"
                 onClick={() => onSetQuickPeriod(30)}
                 className="px-2 py-1 text-[11px] font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-2xs cursor-pointer"
               >
                 30 Hari
               </button>
               <button
+                type="button"
                 onClick={() => onSetQuickPeriod('thisMonth')}
                 className="px-2 py-1 text-[11px] font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-2xs cursor-pointer"
               >
@@ -472,6 +483,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
 
           {hasActivePeriod && (
             <button
+              type="button"
               onClick={onResetPeriod}
               className="text-xs text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-300 font-semibold flex items-center gap-1 underline cursor-pointer"
             >
@@ -488,15 +500,21 @@ export const LinkTable: React.FC<LinkTableProps> = ({
           {/* Header row with modern adaptive light and dark styling */}
           <thead>
             <tr className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-white select-none text-[12px] font-semibold tracking-wider border-b border-slate-200 dark:border-slate-800">
+              {/* Select All Checkbox - Custom SVG Box (No OS black square in Light Mode) */}
               <th className="py-3.5 px-3.5 w-10 text-center border-r border-slate-200 dark:border-slate-800">
-                <input
-                  type="checkbox"
+                <button
+                  type="button"
                   id="select-all-checkbox"
-                  checked={allSelected}
-                  onChange={onToggleSelectAll}
-                  title="Pilih seluruh tautan terfilter"
-                  className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
-                />
+                  onClick={onToggleSelectAll}
+                  title={allSelected ? 'Batalkan pilihan semua' : 'Pilih seluruh tautan terfilter'}
+                  className={`w-4 h-4 rounded border flex items-center justify-center transition cursor-pointer mx-auto ${
+                    allSelected
+                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
+                      : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 hover:border-indigo-400'
+                  }`}
+                >
+                  {allSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                </button>
               </th>
 
               {/* Link Column */}
@@ -540,7 +558,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
               {/* Output Column */}
               {visibleColumns.output && (
                 <th
-                  className="py-3.5 px-3 w-28 border-r border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-900 transition text-center"
+                  className="py-3.5 px-3 w-32 border-r border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-900 transition text-center"
                   onClick={() => onSort('output')}
                 >
                   <div className="flex items-center justify-between">
@@ -555,27 +573,12 @@ export const LinkTable: React.FC<LinkTableProps> = ({
               {/* Region Column */}
               {visibleColumns.region && (
                 <th
-                  className="py-3.5 px-3 w-24 border-r border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-900 transition text-center"
+                  className="py-3.5 px-3 w-28 border-r border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-900 transition text-center"
                   onClick={() => onSort('region')}
                 >
                   <div className="flex items-center justify-between">
                     <span>Region</span>
                     {sortField === 'region' && (
-                      <ArrowUpDown className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-                    )}
-                  </div>
-                </th>
-              )}
-
-              {/* Counta Column */}
-              {visibleColumns.counta && (
-                <th
-                  className="py-3.5 px-3 w-24 border-r border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-900 transition text-center"
-                  onClick={() => onSort('counta')}
-                >
-                  <div className="flex items-center justify-between">
-                    <span>Counta</span>
-                    {sortField === 'counta' && (
                       <ArrowUpDown className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
                     )}
                   </div>
@@ -651,11 +654,6 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                       <div className="w-12 h-4 bg-slate-200 dark:bg-slate-700 rounded mx-auto" />
                     </td>
                   )}
-                  {visibleColumns.counta && (
-                    <td className="py-3 px-3 border-r border-slate-100 dark:border-slate-800/80 text-center">
-                      <div className="w-8 h-4 bg-slate-200 dark:bg-slate-700 rounded mx-auto" />
-                    </td>
-                  )}
                   {visibleColumns.note && (
                     <td className="py-3 px-4 border-r border-slate-100 dark:border-slate-800/80">
                       <div className="w-24 h-4 bg-slate-200 dark:bg-slate-700 rounded" />
@@ -704,16 +702,20 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                         : 'bg-white dark:bg-slate-900 hover:bg-slate-50/80 dark:hover:bg-slate-800/50'
                     }`}
                   >
-                    {/* Checkbox with Shift-Click Range Selection */}
+                    {/* Checkbox with Shift-Click Range Selection - Custom SVG Button (Integrasi Penuh Tema Terang) */}
                     <td className="py-2.5 px-3.5 text-center border-r border-slate-100 dark:border-slate-800/80">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => onToggleSelect(item.id)}
+                      <button
+                        type="button"
                         onClick={e => handleCheckboxClick(e, item, index)}
-                        className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                        className={`w-4 h-4 rounded border flex items-center justify-center transition cursor-pointer mx-auto ${
+                          isSelected
+                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
+                            : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 hover:border-indigo-400'
+                        }`}
                         title="Klik untuk memilih (Tahan Shift + Klik untuk memilih rentang)"
-                      />
+                      >
+                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                      </button>
                     </td>
 
                     {/* Link Column: 1 Single Clean Link (No double link underneath) */}
@@ -761,91 +763,92 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                       </div>
                     </td>
 
-                    {/* Status Dropdown */}
-                    {visibleColumns.status && (
-                      <td className="py-2.5 px-3 text-center border-r border-slate-100 dark:border-slate-800/80">
-                        <div className="relative inline-block">
-                          <select
-                            value={item.status}
-                            onChange={e => onUpdateStatus(item.id, e.target.value)}
-                            className={`appearance-none font-bold text-[11px] px-3 py-1 rounded-full cursor-pointer pr-6 shadow-2xs border transition outline-none ${
-                              item.status === 'Blank'
-                                ? 'bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-950 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/60'
-                                : item.status === 'Sudah Terunduh'
-                                ? 'bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
-                                : item.status === 'Proses'
-                                ? 'bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60'
-                                : item.status === 'Web Inactive'
-                                ? 'bg-red-100 dark:bg-red-950 hover:bg-red-200 text-red-800 dark:text-red-300 border-red-300 dark:border-red-800'
-                                : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                            }`}
-                          >
-                            {settings.statusOptions.map((st, sIdx) => (
-                              <option key={sIdx} value={st} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-                                {st}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="w-3 h-3 text-slate-500 dark:text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-80" />
-                        </div>
-                      </td>
-                    )}
+                    {/* Status Dropdown with Dynamic Configured Color */}
+                    {visibleColumns.status && (() => {
+                      const colorKey = getOptionColor(item.status, settings.statusColors, DEFAULT_STATUS_COLORS);
+                      const colorDef = PRESET_COLORS[colorKey] || PRESET_COLORS.slate;
 
-                    {/* Output Dropdown / Pill */}
-                    {visibleColumns.output && (
-                      <td className="py-2.5 px-3 text-center border-r border-slate-100 dark:border-slate-800/80">
-                        {onUpdateOutput ? (
+                      return (
+                        <td className="py-2.5 px-3 text-center border-r border-slate-100 dark:border-slate-800/80">
                           <div className="relative inline-block">
                             <select
-                              value={item.output}
-                              onChange={e => onUpdateOutput(item.id, e.target.value)}
-                              className="appearance-none inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 pr-5 cursor-pointer outline-none"
+                              value={item.status}
+                              onChange={e => onUpdateStatus(item.id, e.target.value)}
+                              className={`appearance-none font-bold text-[11px] px-3 py-1 rounded-full cursor-pointer pr-6 shadow-2xs border transition outline-none ${colorDef.selectClass}`}
                             >
-                              {settings.outputOptions.map((out, oIdx) => (
-                                <option key={oIdx} value={out} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-                                  {out}
+                              {settings.statusOptions.map((st, sIdx) => (
+                                <option key={sIdx} value={st} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+                                  {st}
                                 </option>
                               ))}
                             </select>
-                            <ChevronDown className="w-2.5 h-2.5 text-indigo-500 dark:text-indigo-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <ChevronDown className="w-3 h-3 text-current absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-80" />
                           </div>
-                        ) : (
-                          <div className="inline-flex items-center justify-center px-3 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
-                            {item.output}
-                          </div>
-                        )}
-                      </td>
-                    )}
+                        </td>
+                      );
+                    })()}
 
-                    {/* Region Dropdown / Tag */}
-                    {visibleColumns.region && (
-                      <td className="py-2.5 px-3 text-center font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800/80">
-                        {onUpdateRegion ? (
-                          <select
-                            value={item.region}
-                            onChange={e => onUpdateRegion(item.id, e.target.value)}
-                            className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-semibold border border-slate-200 dark:border-slate-700 cursor-pointer outline-none"
-                          >
-                            {settings.regionOptions.map((reg, rIdx) => (
-                              <option key={rIdx} value={reg} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-                                {reg}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-semibold">
-                            {item.region}
-                          </span>
-                        )}
-                      </td>
-                    )}
+                    {/* Output Dropdown / Pill with Dynamic Configured Color */}
+                    {visibleColumns.output && (() => {
+                      const outColorKey = getOptionColor(item.output, settings.outputColors, DEFAULT_OUTPUT_COLORS);
+                      const outDef = PRESET_COLORS[outColorKey] || PRESET_COLORS.indigo;
 
-                    {/* Counta */}
-                    {visibleColumns.counta && (
-                      <td className="py-2.5 px-3 text-center font-medium text-slate-600 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800/80">
-                        {item.counta}
-                      </td>
-                    )}
+                      return (
+                        <td className="py-2.5 px-3 text-center border-r border-slate-100 dark:border-slate-800/80">
+                          {onUpdateOutput ? (
+                            <div className="relative inline-block">
+                              <select
+                                value={item.output}
+                                onChange={e => onUpdateOutput(item.id, e.target.value)}
+                                className={`appearance-none inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border pr-5 cursor-pointer outline-none ${outDef.selectClass}`}
+                              >
+                                {settings.outputOptions.map((out, oIdx) => (
+                                  <option key={oIdx} value={out} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+                                    {out}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown className="w-2.5 h-2.5 text-current absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-80" />
+                            </div>
+                          ) : (
+                            <div className={`inline-flex items-center justify-center px-3 py-0.5 rounded-full text-[11px] font-bold border ${outDef.selectClass}`}>
+                              {item.output}
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })()}
+
+                    {/* Region Dropdown / Tag with Dynamic Configured Color */}
+                    {visibleColumns.region && (() => {
+                      const regColorKey = getOptionColor(item.region, settings.regionColors, DEFAULT_REGION_COLORS);
+                      const regDef = PRESET_COLORS[regColorKey] || PRESET_COLORS.emerald;
+
+                      return (
+                        <td className="py-2.5 px-3 text-center border-r border-slate-100 dark:border-slate-800/80">
+                          {onUpdateRegion ? (
+                            <div className="relative inline-block">
+                              <select
+                                value={item.region}
+                                onChange={e => onUpdateRegion(item.id, e.target.value)}
+                                className={`appearance-none px-2.5 py-0.5 rounded-md text-[11px] font-bold border pr-4 cursor-pointer outline-none ${regDef.selectClass}`}
+                              >
+                                {settings.regionOptions.map((reg, rIdx) => (
+                                  <option key={rIdx} value={reg} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+                                    {reg}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown className="w-2.5 h-2.5 text-current absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none opacity-80" />
+                            </div>
+                          ) : (
+                            <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${regDef.selectClass}`}>
+                              {item.region}
+                            </span>
+                          )}
+                        </td>
+                      );
+                    })()}
 
                     {/* Note (Editable) */}
                     {visibleColumns.note && (

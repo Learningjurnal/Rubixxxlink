@@ -65,7 +65,6 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
           status: 'Blank',
           output: 'Single',
           region: 'LIVE',
-          counta: 1,
           note: '',
           diperbarui: formatDateNow(),
           createdAt: Date.now(),

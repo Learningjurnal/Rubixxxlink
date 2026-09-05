@@ -1,5 +1,17 @@
 export type LinkStatus = string;
 
+export type PresetColor =
+  | 'rose'
+  | 'emerald'
+  | 'amber'
+  | 'blue'
+  | 'indigo'
+  | 'purple'
+  | 'cyan'
+  | 'teal'
+  | 'pink'
+  | 'slate';
+
 export interface LinkItem {
   id: string;
   name?: string;
@@ -7,7 +19,6 @@ export interface LinkItem {
   status: LinkStatus;
   output: string;
   region: string;
-  counta: number;
   note: string;
   tag?: string;
   diperbarui: string;
@@ -24,7 +35,6 @@ export interface ImportPreviewItem {
   status: LinkStatus;
   output: string;
   region: string;
-  counta: number;
   note: string;
   tag?: string;
   diperbarui: string;
@@ -38,6 +48,9 @@ export interface AppSettings {
   outputOptions: string[];
   regionOptions: string[];
   notePresets: string[];
+  statusColors?: Record<string, PresetColor>;
+  outputColors?: Record<string, PresetColor>;
+  regionColors?: Record<string, PresetColor>;
 }
 
 export type SortField =
@@ -46,7 +59,6 @@ export type SortField =
   | 'status'
   | 'output'
   | 'region'
-  | 'counta'
   | 'note'
   | 'diperbarui'
   | 'createdAt';

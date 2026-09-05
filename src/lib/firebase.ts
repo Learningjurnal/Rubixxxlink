@@ -25,6 +25,11 @@ import {
   getDocFromServer,
 } from 'firebase/firestore';
 import { LinkItem, AppSettings } from '../types';
+import {
+  DEFAULT_STATUS_COLORS,
+  DEFAULT_OUTPUT_COLORS,
+  DEFAULT_REGION_COLORS,
+} from '../utils/colorHelper';
 
 // Safely resolve local config json if present
 const configModules = import.meta.glob('../../firebase-applet-config.json', { eager: true });
@@ -110,6 +115,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     'Kecepatan Tinggi',
     'Kadaluarsa',
   ],
+  statusColors: DEFAULT_STATUS_COLORS,
+  outputColors: DEFAULT_OUTPUT_COLORS,
+  regionColors: DEFAULT_REGION_COLORS,
 };
 
 const LINKS_COLLECTION = 'links';
@@ -215,7 +223,6 @@ export function subscribeToLinks(
             status: data.status || 'Blank',
             output: data.output || 'Single',
             region: data.region || 'LIVE',
-            counta: typeof data.counta === 'number' ? data.counta : 1,
             note: data.note || '',
             tag: data.tag || '',
             diperbarui: data.diperbarui || '',

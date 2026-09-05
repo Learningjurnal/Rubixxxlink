@@ -76,7 +76,6 @@ export async function parseExcelFile(
   const statusCol = findHeaderIndex(headers, ['status', 'kondisi']);
   const outputCol = findHeaderIndex(headers, ['output', 'tipe', 'type']);
   const regionCol = findHeaderIndex(headers, ['region', 'wilayah', 'lokasi']);
-  const countaCol = findHeaderIndex(headers, ['counta', 'count', 'jumlah', 'qty']);
   const noteCol = findHeaderIndex(headers, ['note', 'catatan', 'keterangan', 'pesan']);
   const tagCol = findHeaderIndex(headers, ['tag', 'kategori', 'category', 'label_tag', 'tags']);
   const dateCol = findHeaderIndex(headers, ['diperbarui', 'updated', 'tanggal', 'date']);
@@ -116,7 +115,6 @@ export async function parseExcelFile(
 
     const outputVal = outputCol !== -1 && row[outputCol] ? String(row[outputCol]).trim() : 'Single';
     const regionVal = regionCol !== -1 && row[regionCol] ? String(row[regionCol]).trim() : 'LIVE';
-    const countaVal = countaCol !== -1 && !isNaN(Number(row[countaCol])) ? Number(row[countaCol]) : 1;
     const noteVal = noteCol !== -1 && row[noteCol] ? String(row[noteCol]).trim() : '';
     const tagVal = tagCol !== -1 && row[tagCol] ? String(row[tagCol]).trim() : '';
     const dateVal = dateCol !== -1 && row[dateCol] ? String(row[dateCol]).trim() : formatDateNow();
@@ -258,7 +256,6 @@ export async function parseExcelFile(
         status: statusVal,
         output: outputVal || 'Single',
         region: regionVal || 'LIVE',
-        counta: countaVal,
         note: noteVal,
         tag: tagVal,
         diperbarui: dateVal,
@@ -285,7 +282,6 @@ export function exportToExcel(items: LinkItem[], filename = 'Management_Link_Exp
     Status: item.status,
     Output: item.output,
     Region: item.region,
-    Counta: item.counta,
     Note: item.note,
     Diperbarui: item.diperbarui,
   }));
@@ -299,7 +295,6 @@ export function exportToExcel(items: LinkItem[], filename = 'Management_Link_Exp
     { wch: 18 }, // Status
     { wch: 14 }, // Output
     { wch: 12 }, // Region
-    { wch: 10 }, // Counta
     { wch: 20 }, // Note
     { wch: 16 }, // Diperbarui
   ];
@@ -317,7 +312,6 @@ export function exportToCsv(items: LinkItem[], filename = 'Selected_Links_Export
     Status: item.status,
     Output: item.output,
     Region: item.region,
-    Counta: item.counta,
     Note: item.note,
     Diperbarui: item.diperbarui,
   }));
@@ -345,7 +339,6 @@ export function downloadTemplateExcel() {
       Status: 'Blank',
       Output: 'Single',
       Region: 'LIVE',
-      Counta: 1,
       Note: '',
       Diperbarui: formatDateNow(),
     },
@@ -355,7 +348,6 @@ export function downloadTemplateExcel() {
       Status: 'Blank',
       Output: 'Single',
       Region: 'LIVE',
-      Counta: 1,
       Note: 'Web Inactive',
       Diperbarui: formatDateNow(),
     },
@@ -368,7 +360,6 @@ export function downloadTemplateExcel() {
     { wch: 15 },
     { wch: 12 },
     { wch: 12 },
-    { wch: 10 },
     { wch: 20 },
     { wch: 16 },
   ];

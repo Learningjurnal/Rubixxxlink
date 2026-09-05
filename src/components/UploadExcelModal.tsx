@@ -108,7 +108,6 @@ export const UploadExcelModal: React.FC<UploadExcelModalProps> = ({
         status: preview.status || 'Blank',
         output: preview.output || 'Single',
         region: preview.region || 'LIVE',
-        counta: preview.counta || 1,
         note: preview.note || '',
         diperbarui: preview.diperbarui,
         createdAt: now,
@@ -133,20 +132,20 @@ export const UploadExcelModal: React.FC<UploadExcelModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div
         id="upload-excel-modal-content"
-        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]"
+        className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh] border border-slate-200 dark:border-slate-800"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white border-b border-slate-800">
+        <div className="flex items-center justify-between px-6 py-4.5 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-xs">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-xs">
               <FileSpreadsheet className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-lg leading-tight">Upload & Ekstrak Link dari Excel</h3>
-              <p className="text-xs text-slate-300">
+              <h3 className="font-bold text-base leading-tight text-slate-900 dark:text-white">Upload & Ekstrak Link dari Excel</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-300">
                 Pembaruan data massal, ekstraksi tautan cerdas & deteksi duplikasi
               </p>
             </div>
@@ -154,7 +153,7 @@ export const UploadExcelModal: React.FC<UploadExcelModalProps> = ({
           <button
             id="close-upload-modal-btn"
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -231,7 +230,7 @@ export const UploadExcelModal: React.FC<UploadExcelModalProps> = ({
                   Mendukung format .xlsx, .xls, atau .csv (Maksimal 10 MB)
                 </p>
                 <p className="text-xs text-indigo-600 font-medium mt-3">
-                  Kolom otomatis terdeteksi: Link, Nama, Tag, Status, Output, Region, Counta, Note, Diperbarui
+                  Kolom otomatis terdeteksi: Link, Nama, Tag, Status, Output, Region, Note, Diperbarui
                 </p>
               </div>
 

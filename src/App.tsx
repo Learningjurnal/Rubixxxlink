@@ -63,6 +63,13 @@ import {
   clearCachedLocalLinks,
   LOCAL_STORAGE_LINKS_KEY,
 } from './lib/firebase';
+import {
+  saveLinksToIndexedDb,
+  getLinksFromIndexedDb,
+  clearLinksFromIndexedDb,
+  exportDatabaseBackupJson,
+  parseDatabaseBackupJson,
+} from './lib/indexedDbStorage';
 
 export default function App() {
   // State for Links initialized from cache for instant offline-first display
@@ -158,25 +165,40 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // 3. Firestore Links subscription & auto-cleanup dummy links
+  // 3. Firestore Links subscription, IndexedDB High-Capacity caching & auto-cleanup
   useEffect(() => {
     // Auto-clean any legacy dummy data that might have been saved to Firestore
     clearKnownDummyLinksFromFirestore().catch(() => {});
+
+    // Try high-capacity IndexedDB for instant display of 29k+ links
+    getLinksFromIndexedDb().then(idbLinks => {
+      if (idbLinks && idbLinks.length > 0) {
+        setItems(prev => (prev.length === 0 ? idbLinks : prev));
+      }
+    }).catch(() => {});
 
     const unsub = subscribeToLinks(
       fireLinks => {
         setIsDbConnected(true);
         setIsDbLoading(false);
         setItems(fireLinks);
+        saveLinksToIndexedDb(fireLinks).catch(() => {});
       },
       err => {
         console.warn('Firestore subscription offline notice:', err);
         setIsDbConnected(false);
         setIsDbLoading(false);
-        const local = getCachedLocalLinks();
-        if (local.length > 0) {
-          setItems(local);
-        }
+        getLinksFromIndexedDb().then(idbLinks => {
+          if (idbLinks && idbLinks.length > 0) {
+            setItems(idbLinks);
+          } else {
+            const local = getCachedLocalLinks();
+            if (local.length > 0) setItems(local);
+          }
+        }).catch(() => {
+          const local = getCachedLocalLinks();
+          if (local.length > 0) setItems(local);
+        });
       }
     );
 
@@ -263,7 +285,7 @@ export default function App() {
         let valA = a[sortField];
         let valB = b[sortField];
 
-        if (sortField === 'counta' || sortField === 'createdAt') {
+        if (sortField === 'createdAt') {
           const numA = Number(valA || 0);
           const numB = Number(valB || 0);
           return sortDirection === 'asc' ? numA - numB : numB - numA;
@@ -336,8 +358,9 @@ export default function App() {
     setStartDate('');
     setEndDate('');
 
-    // 2. Immediately wipe all local storage keys
+    // 2. Immediately wipe all local storage keys and IndexedDB
     clearCachedLocalLinks();
+    clearLinksFromIndexedDb().catch(() => {});
 
     // 3. Attempt Firestore cloud wipe safely
     try {
@@ -347,6 +370,34 @@ export default function App() {
     }
 
     addToast('success', 'Semua data tautan & informasi berhasil dibersihkan total (0 tautan)!');
+  };
+
+  // Database Backup (Download JSON) & Restore (Upload JSON)
+  const handleExportBackup = () => {
+    exportDatabaseBackupJson(items, settings);
+    addToast('success', `Cadangan database berhasil diunduh (${items.length.toLocaleString('id-ID')} tautan)!`);
+  };
+
+  const handleRestoreBackup = async (file: File) => {
+    try {
+      const text = await file.text();
+      const { links, settings: restoredSettings } = parseDatabaseBackupJson(text);
+      if (links.length === 0) {
+        addToast('error', 'Berkas JSON cadangan tidak memiliki tautan valid.');
+        return;
+      }
+      setItems(links);
+      saveLinksToIndexedDb(links).catch(() => {});
+      saveCachedLocalLinks(links);
+      if (restoredSettings) {
+        setSettings(restoredSettings);
+        saveSettingsToFirestore(restoredSettings).catch(() => {});
+      }
+      addToast('success', `Berhasil memulihkan ${links.length.toLocaleString('id-ID')} tautan dari berkas cadangan JSON!`);
+    } catch (err: any) {
+      console.error('Failed to restore backup:', err);
+      addToast('error', `Gagal memulihkan cadangan: ${err.message || 'Format tidak valid'}`);
+    }
   };
 
   // Status and data update handlers with Firestore sync
@@ -657,7 +708,6 @@ export default function App() {
           status: item.status,
           output: item.output,
           region: item.region,
-          counta: item.counta,
           note: item.note,
           diperbarui: item.diperbarui,
           createdAt: item.createdAt,
@@ -1029,6 +1079,8 @@ export default function App() {
         onSaveSettings={setSettings}
         onClearAllData={handleClearAllData}
         totalLinksCount={items.length}
+        onExportBackup={handleExportBackup}
+        onRestoreBackup={handleRestoreBackup}
       />
 
       {/* Reset Data Modal (Pusat Reset Filter, Opsi, & Database) */}
