@@ -14,6 +14,7 @@ import {
   Layers,
   MapPin,
   FileText,
+  RefreshCw,
 } from 'lucide-react';
 import { AppSettings, PresetColor } from '../types';
 import { DEFAULT_SETTINGS, saveSettingsToFirestore } from '../lib/firebase';
@@ -35,6 +36,7 @@ interface SettingsModalProps {
   totalLinksCount?: number;
   onExportBackup?: () => void;
   onRestoreBackup?: (file: File) => Promise<void>;
+  onSyncDataToSettings?: () => Promise<void>;
 }
 
 type ActiveTab = 'status' | 'output' | 'region' | 'note' | 'database';
@@ -126,6 +128,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   totalLinksCount = 0,
   onExportBackup,
   onRestoreBackup,
+  onSyncDataToSettings,
 }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('status');
   const [statusList, setStatusList] = useState<string[]>(settings.statusOptions);
@@ -157,6 +160,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [newNote, setNewNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [syncingData, setSyncingData] = useState(false);
+  const [syncSuccess, setSyncSuccess] = useState(false);
+
+  const handleTriggerSync = async () => {
+    if (!onSyncDataToSettings) return;
+    setSyncingData(true);
+    try {
+      await onSyncDataToSettings();
+      setSyncSuccess(true);
+      setTimeout(() => setSyncSuccess(false), 3000);
+    } catch (err) {
+      console.error('Sync failed:', err);
+      alert('Gagal menyinkronkan data tautan.');
+    } finally {
+      setSyncingData(false);
+    }
+  };
 
   // Sync state if settings prop changes
   useEffect(() => {
@@ -649,6 +669,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </span>
                 </div>
               </div>
+
+              {/* Data Normalization & Color Sync to Settings */}
+              {onSyncDataToSettings && (
+                <div className="p-4 border border-indigo-200/80 dark:border-indigo-900/60 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                  <div>
+                    <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200 font-bold text-xs mb-1">
+                      <RefreshCw className={`w-4 h-4 text-indigo-600 dark:text-indigo-400 ${syncingData ? 'animate-spin' : ''}`} />
+                      <span>Sinkronkan Status, Output & Region ke Seluruh Tautan</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                      Pindai seluruh {totalLinksCount.toLocaleString('id-ID')} link dan normalkan data status/output/region yang kosong atau tidak cocok agar seragam mengikuti daftar opsi & warna aktif saat ini.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleTriggerSync}
+                    disabled={syncingData}
+                    className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${syncingData ? 'animate-spin' : ''}`} />
+                    <span>{syncSuccess ? '✓ Berhasil Disinkronkan!' : syncingData ? 'Menyinkronkan...' : 'Sinkronkan Sekarang'}</span>
+                  </button>
+                </div>
+              )}
 
               {/* Backup & Restore Action Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">

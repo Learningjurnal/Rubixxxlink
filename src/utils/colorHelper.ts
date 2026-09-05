@@ -123,16 +123,78 @@ export const DEFAULT_REGION_COLORS: Record<string, PresetColor> = {
 };
 
 export function getOptionColor(
-  value: string,
+  value: string | undefined | null,
   colorMap?: Record<string, PresetColor>,
   defaultMap?: Record<string, PresetColor>
 ): PresetColor {
-  if (colorMap && colorMap[value]) {
-    return colorMap[value];
+  const cleanVal = (value || '').trim();
+
+  // 1. Direct exact match
+  if (colorMap && colorMap[cleanVal]) {
+    return colorMap[cleanVal];
   }
-  if (defaultMap && defaultMap[value]) {
-    return defaultMap[value];
+  if (defaultMap && defaultMap[cleanVal]) {
+    return defaultMap[cleanVal];
   }
+
+  // 2. Case-insensitive match in user colorMap
+  if (colorMap && cleanVal) {
+    const lower = cleanVal.toLowerCase();
+    for (const [k, v] of Object.entries(colorMap)) {
+      if (k.trim().toLowerCase() === lower) {
+        return v;
+      }
+    }
+  }
+
+  // 3. Case-insensitive match in defaultMap
+  if (defaultMap && cleanVal) {
+    const lower = cleanVal.toLowerCase();
+    for (const [k, v] of Object.entries(defaultMap)) {
+      if (k.trim().toLowerCase() === lower) {
+        return v;
+      }
+    }
+  }
+
+  // 4. Semantic Heuristics Fallbacks (prevent unwanted slate/grey pills)
+  const lower = cleanVal.toLowerCase();
+  if (!cleanVal || lower === 'blank' || lower === 'empty' || lower.includes('belum')) {
+    if (colorMap && colorMap['Blank']) return colorMap['Blank'];
+    if (defaultMap && defaultMap['Blank']) return defaultMap['Blank'];
+    return 'rose';
+  }
+  if (lower.includes('terunduh') || lower.includes('download') || lower.includes('selesai') || lower.includes('done')) {
+    if (colorMap && colorMap['Sudah Terunduh']) return colorMap['Sudah Terunduh'];
+    if (defaultMap && defaultMap['Sudah Terunduh']) return defaultMap['Sudah Terunduh'];
+    return 'emerald';
+  }
+  if (lower.includes('proses') || lower.includes('process') || lower.includes('pending') || lower.includes('antri')) {
+    if (colorMap && colorMap['Proses']) return colorMap['Proses'];
+    if (defaultMap && defaultMap['Proses']) return defaultMap['Proses'];
+    return 'amber';
+  }
+  if (lower.includes('inactive') || lower.includes('mati') || lower.includes('rusak') || lower.includes('gagal') || lower.includes('fail') || lower.includes('error')) {
+    if (colorMap && colorMap['Web Inactive']) return colorMap['Web Inactive'];
+    if (defaultMap && defaultMap['Web Inactive']) return defaultMap['Web Inactive'];
+    return 'rose';
+  }
+
+  // Output heuristics
+  if (lower.includes('single')) return colorMap?.['Single'] || defaultMap?.['Single'] || 'blue';
+  if (lower.includes('batch')) return colorMap?.['Batch'] || defaultMap?.['Batch'] || 'indigo';
+  if (lower.includes('bulk')) return colorMap?.['Bulk'] || defaultMap?.['Bulk'] || 'purple';
+  if (lower.includes('folder')) return colorMap?.['Folder'] || defaultMap?.['Folder'] || 'cyan';
+  if (lower.includes('mirror')) return colorMap?.['Mirror'] || defaultMap?.['Mirror'] || 'teal';
+
+  // Region heuristics
+  if (lower.includes('live')) return colorMap?.['LIVE'] || defaultMap?.['LIVE'] || 'emerald';
+  if (lower.includes('asia')) return colorMap?.['ASIA'] || defaultMap?.['ASIA'] || 'amber';
+  if (lower.includes('us')) return colorMap?.['US'] || defaultMap?.['US'] || 'blue';
+  if (lower.includes('eu')) return colorMap?.['EU'] || defaultMap?.['EU'] || 'purple';
+  if (lower.includes('id')) return colorMap?.['ID'] || defaultMap?.['ID'] || 'rose';
+  if (lower.includes('global')) return colorMap?.['GLOBAL'] || defaultMap?.['GLOBAL'] || 'cyan';
+
   return 'slate';
 }
 

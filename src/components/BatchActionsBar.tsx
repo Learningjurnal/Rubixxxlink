@@ -11,13 +11,17 @@ import {
   SearchCheck,
   Loader2,
   Download,
+  ChevronDown,
 } from 'lucide-react';
-import { LinkStatus } from '../types';
+import { LinkStatus, AppSettings } from '../types';
 
 interface BatchActionsBarProps {
   selectedCount: number;
   onClearSelection: () => void;
-  onUpdateStatus: (status: LinkStatus) => void;
+  onUpdateStatus: (status: string) => void;
+  onUpdateOutput?: (output: string) => void;
+  onUpdateRegion?: (region: string) => void;
+  settings?: AppSettings;
   onApplyTag: (tag: string) => void;
   onOpenSelected: () => void;
   onCopySelected: () => void;
@@ -35,6 +39,9 @@ export const BatchActionsBar: React.FC<BatchActionsBarProps> = ({
   selectedCount,
   onClearSelection,
   onUpdateStatus,
+  onUpdateOutput,
+  onUpdateRegion,
+  settings,
   onApplyTag,
   onOpenSelected,
   onCopySelected,
@@ -144,6 +151,81 @@ export const BatchActionsBar: React.FC<BatchActionsBarProps> = ({
           <RotateCcw className="w-3.5 h-3.5" />
           <span>Tandai Blank</span>
         </button>
+
+        {/* Batch Status Selector */}
+        {settings?.statusOptions && settings.statusOptions.length > 0 && (
+          <div className="relative inline-flex items-center">
+            <select
+              defaultValue=""
+              onChange={e => {
+                if (e.target.value) {
+                  onUpdateStatus(e.target.value);
+                  e.target.value = '';
+                }
+              }}
+              className="appearance-none text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 pr-7 cursor-pointer outline-none transition"
+              title="Ubah status semua tautan terpilih sekaligus"
+            >
+              <option value="" disabled>Ubah Status...</option>
+              {settings.statusOptions.map((st, idx) => (
+                <option key={idx} value={st} className="bg-slate-900 text-white">
+                  ● {st}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 pointer-events-none" />
+          </div>
+        )}
+
+        {/* Batch Output Selector */}
+        {onUpdateOutput && settings?.outputOptions && settings.outputOptions.length > 0 && (
+          <div className="relative inline-flex items-center">
+            <select
+              defaultValue=""
+              onChange={e => {
+                if (e.target.value) {
+                  onUpdateOutput(e.target.value);
+                  e.target.value = '';
+                }
+              }}
+              className="appearance-none text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 pr-7 cursor-pointer outline-none transition"
+              title="Ubah output semua tautan terpilih sekaligus"
+            >
+              <option value="" disabled>Ubah Output...</option>
+              {settings.outputOptions.map((out, idx) => (
+                <option key={idx} value={out} className="bg-slate-900 text-white">
+                  {out}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 pointer-events-none" />
+          </div>
+        )}
+
+        {/* Batch Region Selector */}
+        {onUpdateRegion && settings?.regionOptions && settings.regionOptions.length > 0 && (
+          <div className="relative inline-flex items-center">
+            <select
+              defaultValue=""
+              onChange={e => {
+                if (e.target.value) {
+                  onUpdateRegion(e.target.value);
+                  e.target.value = '';
+                }
+              }}
+              className="appearance-none text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 pr-7 cursor-pointer outline-none transition"
+              title="Ubah region semua tautan terpilih sekaligus"
+            >
+              <option value="" disabled>Ubah Region...</option>
+              {settings.regionOptions.map((reg, idx) => (
+                <option key={idx} value={reg} className="bg-slate-900 text-white">
+                  {reg}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 pointer-events-none" />
+          </div>
+        )}
 
         {/* Custom Tag / Category Popover Button */}
         <div className="relative" ref={popoverRef}>

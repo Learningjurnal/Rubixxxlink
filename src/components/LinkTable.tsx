@@ -38,8 +38,8 @@ export type ColumnKey = 'status' | 'output' | 'region' | 'note' | 'diperbarui' |
 
 const DEFAULT_VISIBLE_COLUMNS: Record<ColumnKey, boolean> = {
   status: true,
-  output: false,
-  region: false,
+  output: true,
+  region: true,
   note: true,
   diperbarui: true,
   actions: true,
@@ -125,7 +125,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
   // Load / persist column visibility from localStorage
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnKey, boolean>>(() => {
     try {
-      const saved = localStorage.getItem('rubixxxlink_column_visibility_v3');
+      const saved = localStorage.getItem('rubixxxlink_column_visibility_v5');
       if (saved) {
         return { ...DEFAULT_VISIBLE_COLUMNS, ...JSON.parse(saved) };
       }
@@ -765,18 +765,27 @@ export const LinkTable: React.FC<LinkTableProps> = ({
 
                     {/* Status Dropdown with Dynamic Configured Color */}
                     {visibleColumns.status && (() => {
-                      const colorKey = getOptionColor(item.status, settings.statusColors, DEFAULT_STATUS_COLORS);
+                      const rawStatus = (item.status || '').trim();
+                      const matchedStatus = settings.statusOptions.find(
+                        st => st.toLowerCase().trim() === rawStatus.toLowerCase()
+                      );
+                      const displayStatus = matchedStatus || rawStatus || settings.statusOptions[0] || 'Blank';
+                      const colorKey = getOptionColor(displayStatus, settings.statusColors, DEFAULT_STATUS_COLORS);
                       const colorDef = PRESET_COLORS[colorKey] || PRESET_COLORS.slate;
+
+                      const statusOptions = settings.statusOptions.includes(displayStatus)
+                        ? settings.statusOptions
+                        : [displayStatus, ...settings.statusOptions];
 
                       return (
                         <td className="py-2.5 px-3 text-center border-r border-slate-100 dark:border-slate-800/80">
                           <div className="relative inline-block">
                             <select
-                              value={item.status}
+                              value={displayStatus}
                               onChange={e => onUpdateStatus(item.id, e.target.value)}
                               className={`appearance-none font-bold text-[11px] px-3 py-1 rounded-full cursor-pointer pr-6 shadow-2xs border transition outline-none ${colorDef.selectClass}`}
                             >
-                              {settings.statusOptions.map((st, sIdx) => (
+                              {statusOptions.map((st, sIdx) => (
                                 <option key={sIdx} value={st} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
                                   {st}
                                 </option>
@@ -790,19 +799,28 @@ export const LinkTable: React.FC<LinkTableProps> = ({
 
                     {/* Output Dropdown / Pill with Dynamic Configured Color */}
                     {visibleColumns.output && (() => {
-                      const outColorKey = getOptionColor(item.output, settings.outputColors, DEFAULT_OUTPUT_COLORS);
+                      const rawOutput = (item.output || '').trim();
+                      const matchedOutput = settings.outputOptions.find(
+                        o => o.toLowerCase().trim() === rawOutput.toLowerCase()
+                      );
+                      const displayOutput = matchedOutput || rawOutput || settings.outputOptions[0] || 'Single';
+                      const outColorKey = getOptionColor(displayOutput, settings.outputColors, DEFAULT_OUTPUT_COLORS);
                       const outDef = PRESET_COLORS[outColorKey] || PRESET_COLORS.indigo;
+
+                      const outputOptions = settings.outputOptions.includes(displayOutput)
+                        ? settings.outputOptions
+                        : [displayOutput, ...settings.outputOptions];
 
                       return (
                         <td className="py-2.5 px-3 text-center border-r border-slate-100 dark:border-slate-800/80">
                           {onUpdateOutput ? (
                             <div className="relative inline-block">
                               <select
-                                value={item.output}
+                                value={displayOutput}
                                 onChange={e => onUpdateOutput(item.id, e.target.value)}
                                 className={`appearance-none inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border pr-5 cursor-pointer outline-none ${outDef.selectClass}`}
                               >
-                                {settings.outputOptions.map((out, oIdx) => (
+                                {outputOptions.map((out, oIdx) => (
                                   <option key={oIdx} value={out} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
                                     {out}
                                   </option>
@@ -812,7 +830,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                             </div>
                           ) : (
                             <div className={`inline-flex items-center justify-center px-3 py-0.5 rounded-full text-[11px] font-bold border ${outDef.selectClass}`}>
-                              {item.output}
+                              {displayOutput}
                             </div>
                           )}
                         </td>
@@ -821,19 +839,28 @@ export const LinkTable: React.FC<LinkTableProps> = ({
 
                     {/* Region Dropdown / Tag with Dynamic Configured Color */}
                     {visibleColumns.region && (() => {
-                      const regColorKey = getOptionColor(item.region, settings.regionColors, DEFAULT_REGION_COLORS);
+                      const rawRegion = (item.region || '').trim().toUpperCase();
+                      const matchedRegion = settings.regionOptions.find(
+                        r => r.toUpperCase().trim() === rawRegion
+                      );
+                      const displayRegion = matchedRegion || rawRegion || settings.regionOptions[0] || 'LIVE';
+                      const regColorKey = getOptionColor(displayRegion, settings.regionColors, DEFAULT_REGION_COLORS);
                       const regDef = PRESET_COLORS[regColorKey] || PRESET_COLORS.emerald;
+
+                      const regionOptions = settings.regionOptions.includes(displayRegion)
+                        ? settings.regionOptions
+                        : [displayRegion, ...settings.regionOptions];
 
                       return (
                         <td className="py-2.5 px-3 text-center border-r border-slate-100 dark:border-slate-800/80">
                           {onUpdateRegion ? (
                             <div className="relative inline-block">
                               <select
-                                value={item.region}
+                                value={displayRegion}
                                 onChange={e => onUpdateRegion(item.id, e.target.value)}
                                 className={`appearance-none px-2.5 py-0.5 rounded-md text-[11px] font-bold border pr-4 cursor-pointer outline-none ${regDef.selectClass}`}
                               >
-                                {settings.regionOptions.map((reg, rIdx) => (
+                                {regionOptions.map((reg, rIdx) => (
                                   <option key={rIdx} value={reg} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
                                     {reg}
                                   </option>
@@ -843,7 +870,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                             </div>
                           ) : (
                             <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${regDef.selectClass}`}>
-                              {item.region}
+                              {displayRegion}
                             </span>
                           )}
                         </td>

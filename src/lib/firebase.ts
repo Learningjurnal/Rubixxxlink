@@ -396,6 +396,74 @@ export async function batchUpdateTagInFirestore(
 }
 
 /**
+ * Batch update output
+ */
+export async function batchUpdateOutputInFirestore(
+  ids: string[],
+  output: string
+): Promise<void> {
+  const CHUNK_SIZE = 400;
+  for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + CHUNK_SIZE);
+    const batch = writeBatch(db);
+    chunk.forEach(id => {
+      const docRef = doc(db, LINKS_COLLECTION, id);
+      batch.update(docRef, { output: output.trim() });
+    });
+    try {
+      await batch.commit();
+    } catch (err) {
+      console.warn('Firestore batch update output notice:', err);
+    }
+  }
+}
+
+/**
+ * Batch update region
+ */
+export async function batchUpdateRegionInFirestore(
+  ids: string[],
+  region: string
+): Promise<void> {
+  const CHUNK_SIZE = 400;
+  for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + CHUNK_SIZE);
+    const batch = writeBatch(db);
+    chunk.forEach(id => {
+      const docRef = doc(db, LINKS_COLLECTION, id);
+      batch.update(docRef, { region: region.trim() });
+    });
+    try {
+      await batch.commit();
+    } catch (err) {
+      console.warn('Firestore batch update region notice:', err);
+    }
+  }
+}
+
+/**
+ * Batch update multiple items with distinct changes
+ */
+export async function batchUpdateItemsInFirestore(
+  items: { id: string; changes: Partial<LinkItem> }[]
+): Promise<void> {
+  const CHUNK_SIZE = 400;
+  for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+    const chunk = items.slice(i, i + CHUNK_SIZE);
+    const batch = writeBatch(db);
+    chunk.forEach(({ id, changes }) => {
+      const docRef = doc(db, LINKS_COLLECTION, id);
+      batch.update(docRef, changes as Record<string, any>);
+    });
+    try {
+      await batch.commit();
+    } catch (err) {
+      console.warn('Firestore batch update items notice:', err);
+    }
+  }
+}
+
+/**
  * Batch delete links safely
  */
 export async function batchDeleteLinksFromFirestore(ids: string[]): Promise<void> {
@@ -532,11 +600,53 @@ export async function seedInitialLinksIfEmpty(initialList: LinkItem[]): Promise<
 }
 
 /**
- * Settings listener & persistence
+ * Local cache getters and setters for App Settings
+ */
+export function getCachedLocalSettings(): AppSettings {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(LOCAL_STORAGE_SETTINGS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.statusOptions)) {
+          return {
+            statusOptions: parsed.statusOptions || DEFAULT_SETTINGS.statusOptions,
+            outputOptions: parsed.outputOptions || DEFAULT_SETTINGS.outputOptions,
+            regionOptions: parsed.regionOptions || DEFAULT_SETTINGS.regionOptions,
+            notePresets: parsed.notePresets || DEFAULT_SETTINGS.notePresets,
+            statusColors: { ...DEFAULT_STATUS_COLORS, ...(parsed.statusColors || {}) },
+            outputColors: { ...DEFAULT_OUTPUT_COLORS, ...(parsed.outputColors || {}) },
+            regionColors: { ...DEFAULT_REGION_COLORS, ...(parsed.regionColors || {}) },
+          };
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Could not read cached settings:', e);
+  }
+  return DEFAULT_SETTINGS;
+}
+
+export function saveCachedLocalSettings(settings: AppSettings): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(LOCAL_STORAGE_SETTINGS_KEY, JSON.stringify(settings));
+    }
+  } catch (e) {
+    console.warn('Could not save cached settings:', e);
+  }
+}
+
+/**
+ * Settings listener & persistence with local cache & color preservation
  */
 export function subscribeToSettings(
   onUpdate: (settings: AppSettings) => void
 ) {
+  // 1. Immediately emit cached settings to prevent delay or default flash
+  const cached = getCachedLocalSettings();
+  onUpdate(cached);
+
   try {
     const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID);
     return onSnapshot(
@@ -544,33 +654,40 @@ export function subscribeToSettings(
       snap => {
         if (snap.exists()) {
           const data = snap.data();
-          onUpdate({
+          const merged: AppSettings = {
             statusOptions: data.statusOptions || DEFAULT_SETTINGS.statusOptions,
             outputOptions: data.outputOptions || DEFAULT_SETTINGS.outputOptions,
             regionOptions: data.regionOptions || DEFAULT_SETTINGS.regionOptions,
             notePresets: data.notePresets || DEFAULT_SETTINGS.notePresets,
-          });
+            statusColors: { ...DEFAULT_STATUS_COLORS, ...(data.statusColors || {}) },
+            outputColors: { ...DEFAULT_OUTPUT_COLORS, ...(data.outputColors || {}) },
+            regionColors: { ...DEFAULT_REGION_COLORS, ...(data.regionColors || {}) },
+          };
+          saveCachedLocalSettings(merged);
+          onUpdate(merged);
         } else {
           // Initialize default in database
           setDoc(docRef, DEFAULT_SETTINGS).catch(console.error);
+          saveCachedLocalSettings(DEFAULT_SETTINGS);
           onUpdate(DEFAULT_SETTINGS);
         }
       },
       err => {
         console.warn('Settings subscription notice:', err);
-        onUpdate(DEFAULT_SETTINGS);
+        onUpdate(getCachedLocalSettings());
       }
     );
   } catch (err) {
-    onUpdate(DEFAULT_SETTINGS);
+    onUpdate(getCachedLocalSettings());
     return () => {};
   }
 }
 
 /**
- * Save settings to Firestore
+ * Save settings to Firestore and local cache
  */
 export async function saveSettingsToFirestore(settings: AppSettings): Promise<void> {
+  saveCachedLocalSettings(settings);
   const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID);
   await setDoc(docRef, settings);
 }

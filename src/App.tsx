@@ -52,6 +52,9 @@ import {
   updateLinkInFirestore,
   deleteLinkFromFirestore,
   batchUpdateStatusInFirestore,
+  batchUpdateOutputInFirestore,
+  batchUpdateRegionInFirestore,
+  batchUpdateItemsInFirestore,
   batchUpdateTagInFirestore,
   batchDeleteLinksFromFirestore,
   clearAllLinksFromFirestore,
@@ -62,6 +65,8 @@ import {
   saveCachedLocalLinks,
   clearCachedLocalLinks,
   LOCAL_STORAGE_LINKS_KEY,
+  getCachedLocalSettings,
+  saveCachedLocalSettings,
 } from './lib/firebase';
 import {
   saveLinksToIndexedDb,
@@ -78,8 +83,8 @@ export default function App() {
   const [isDbLoading, setIsDbLoading] = useState(true);
   const [isDbConnected, setIsDbConnected] = useState(true);
 
-  // Settings State
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  // Settings State initialized from local cache
+  const [settings, setSettings] = useState<AppSettings>(() => getCachedLocalSettings());
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
@@ -490,7 +495,7 @@ export default function App() {
   };
 
   // Batch Operations with Firestore
-  const handleBatchUpdateStatus = async (status: LinkStatus) => {
+  const handleBatchUpdateStatus = async (status: string) => {
     const today = formatDateNow();
     const ids = Array.from(selectedIds) as string[];
 
@@ -499,7 +504,7 @@ export default function App() {
         selectedIds.has(i.id)
           ? {
               ...i,
-              status,
+              status: status as LinkStatus,
               diperbarui: today,
               downloadedAt: status === 'Sudah Terunduh' ? today : i.downloadedAt,
             }
@@ -513,6 +518,109 @@ export default function App() {
       addToast('success', `${ids.length} link diubah statusnya menjadi "${status}".`);
     } catch (e) {
       console.error(e);
+      addToast('info', 'Status disimpan secara lokal.');
+    }
+  };
+
+  const handleBatchUpdateOutput = async (output: string) => {
+    const ids = Array.from(selectedIds) as string[];
+
+    setItems(prev =>
+      prev.map(i => (selectedIds.has(i.id) ? { ...i, output } : i))
+    );
+    setSelectedIds(new Set());
+
+    try {
+      await batchUpdateOutputInFirestore(ids, output);
+      addToast('success', `${ids.length} link diubah outputnya menjadi "${output}".`);
+    } catch (e) {
+      console.error(e);
+      addToast('info', 'Output disimpan secara lokal.');
+    }
+  };
+
+  const handleBatchUpdateRegion = async (region: string) => {
+    const ids = Array.from(selectedIds) as string[];
+
+    setItems(prev =>
+      prev.map(i => (selectedIds.has(i.id) ? { ...i, region } : i))
+    );
+    setSelectedIds(new Set());
+
+    try {
+      await batchUpdateRegionInFirestore(ids, region);
+      addToast('success', `${ids.length} link diubah regionnya menjadi "${region}".`);
+    } catch (e) {
+      console.error(e);
+      addToast('info', 'Region disimpan secara lokal.');
+    }
+  };
+
+  // Synchronize all items to active settings options and colors
+  const handleSyncAllLinksToSettings = async () => {
+    if (items.length === 0) {
+      addToast('info', 'Tidak ada data tautan untuk disinkronkan.');
+      return;
+    }
+
+    const changedList: { id: string; changes: Partial<LinkItem> }[] = [];
+    const newItems = items.map(item => {
+      const rawStatus = (item.status || '').trim();
+      const matchedStatus = settings.statusOptions.find(
+        st => st.toLowerCase().trim() === rawStatus.toLowerCase()
+      );
+      const canonicalStatus = matchedStatus || (rawStatus ? rawStatus : (settings.statusOptions[0] || 'Blank'));
+
+      const rawOutput = (item.output || '').trim();
+      const matchedOutput = settings.outputOptions.find(
+        o => o.toLowerCase().trim() === rawOutput.toLowerCase()
+      );
+      const canonicalOutput = matchedOutput || (rawOutput ? rawOutput : (settings.outputOptions[0] || 'Single'));
+
+      const rawRegion = (item.region || '').trim().toUpperCase();
+      const matchedRegion = settings.regionOptions.find(
+        r => r.toUpperCase().trim() === rawRegion
+      );
+      const canonicalRegion = matchedRegion || (rawRegion ? rawRegion : (settings.regionOptions[0] || 'LIVE'));
+
+      let hasChanges = false;
+      const changes: Partial<LinkItem> = {};
+
+      if (item.status !== canonicalStatus) {
+        changes.status = canonicalStatus as LinkStatus;
+        hasChanges = true;
+      }
+      if (item.output !== canonicalOutput) {
+        changes.output = canonicalOutput;
+        hasChanges = true;
+      }
+      if (item.region !== canonicalRegion) {
+        changes.region = canonicalRegion;
+        hasChanges = true;
+      }
+
+      if (hasChanges) {
+        changedList.push({ id: item.id, changes });
+        return { ...item, ...changes };
+      }
+      return item;
+    });
+
+    if (changedList.length === 0) {
+      addToast('success', 'Seluruh data tautan sudah sinkron dengan pengaturan aktif.');
+      return;
+    }
+
+    setItems(newItems);
+    saveCachedLocalLinks(newItems);
+    await saveLinksToIndexedDb(newItems);
+
+    try {
+      await batchUpdateItemsInFirestore(changedList);
+      addToast('success', `${changedList.length} tautan berhasil disinkronkan ke opsi dan warna pengaturan.`);
+    } catch (err) {
+      console.warn('Sync firestore notice:', err);
+      addToast('info', `${changedList.length} tautan disinkronkan di penyimpanan lokal.`);
     }
   };
 
@@ -1009,6 +1117,9 @@ export default function App() {
           selectedCount={selectedIds.size}
           onClearSelection={() => setSelectedIds(new Set())}
           onUpdateStatus={handleBatchUpdateStatus}
+          onUpdateOutput={handleBatchUpdateOutput}
+          onUpdateRegion={handleBatchUpdateRegion}
+          settings={settings}
           onApplyTag={handleBatchApplyTag}
           onOpenSelected={handleBatchOpenSelected}
           onCopySelected={handleBatchCopySelected}
@@ -1050,7 +1161,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="w-full py-4 text-center text-xs text-slate-400 border-t border-slate-200 mt-8 bg-white">
+      <footer className="w-full py-4 text-center text-xs text-slate-400 dark:text-slate-500 border-t border-slate-200 dark:border-slate-800 mt-8 bg-white dark:bg-slate-900 transition-colors">
         Link Management System • Cloud Firestore Realtime Sync • Dilengkapi Ekstraktor Link Tertanam & Analisis Periode
       </footer>
 
@@ -1081,6 +1192,7 @@ export default function App() {
         totalLinksCount={items.length}
         onExportBackup={handleExportBackup}
         onRestoreBackup={handleRestoreBackup}
+        onSyncDataToSettings={handleSyncAllLinksToSettings}
       />
 
       {/* Reset Data Modal (Pusat Reset Filter, Opsi, & Database) */}
