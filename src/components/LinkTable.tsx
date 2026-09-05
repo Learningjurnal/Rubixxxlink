@@ -274,10 +274,10 @@ export const LinkTable: React.FC<LinkTableProps> = ({
       <div className="px-5 py-4 bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-200/80 dark:border-slate-800 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-slate-900 dark:bg-slate-800 text-white rounded-xl font-semibold text-xs shadow-xs tracking-wide border border-slate-800 dark:border-slate-700">
-              <TableIcon className="w-3.5 h-3.5 text-indigo-400" />
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-indigo-50 dark:bg-slate-800 text-indigo-900 dark:text-white rounded-xl font-semibold text-xs shadow-xs tracking-wide border border-indigo-200/80 dark:border-slate-700">
+              <TableIcon className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
               <span>Table1 (Database Link Cloud)</span>
-              <ChevronDown className="w-3 h-3 text-slate-400" />
+              <ChevronDown className="w-3 h-3 text-indigo-400 dark:text-slate-400" />
             </div>
 
             {/* Live Data Count & Loading Badge */}
@@ -485,10 +485,10 @@ export const LinkTable: React.FC<LinkTableProps> = ({
       {/* Spreadsheet Main Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse text-xs">
-          {/* Header row with modern dark slate styling */}
+          {/* Header row with modern adaptive light and dark styling */}
           <thead>
-            <tr className="bg-slate-900 dark:bg-slate-950 text-white select-none text-[12px] font-semibold tracking-wider">
-              <th className="py-3.5 px-3.5 w-10 text-center border-r border-slate-800 dark:border-slate-900">
+            <tr className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-white select-none text-[12px] font-semibold tracking-wider border-b border-slate-200 dark:border-slate-800">
+              <th className="py-3.5 px-3.5 w-10 text-center border-r border-slate-200 dark:border-slate-800">
                 <input
                   type="checkbox"
                   id="select-all-checkbox"
@@ -501,7 +501,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
 
               {/* Link Column */}
               <th
-                className="py-3.5 px-4 min-w-[400px] border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition"
+                className="py-3.5 px-4 min-w-[400px] border-r border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-900 transition"
                 onClick={() => onSort('link')}
               >
                 <div className="flex items-center justify-between">
@@ -510,7 +510,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                       Nama & Link Unduhan
                     </span>
                     {sortField === 'link' && (
-                      <ArrowUpDown className="w-3.5 h-3.5 text-indigo-400" />
+                      <ArrowUpDown className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                     )}
                   </div>
                   <span className="text-[10px] text-slate-400 font-normal">
@@ -522,16 +522,16 @@ export const LinkTable: React.FC<LinkTableProps> = ({
               {/* Status Column */}
               {visibleColumns.status && (
                 <th
-                  className="py-3.5 px-3 w-44 border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition text-center"
+                  className="py-3.5 px-3 w-44 border-r border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-900 transition text-center"
                   onClick={() => onSort('status')}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-indigo-400" />
+                      <span className="w-2 h-2 rounded-full bg-indigo-500 dark:bg-indigo-400" />
                       <span>Status</span>
                     </div>
                     {sortField === 'status' && (
-                      <ArrowUpDown className="w-3 h-3 text-indigo-400" />
+                      <ArrowUpDown className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
                     )}
                   </div>
                 </th>
@@ -540,13 +540,13 @@ export const LinkTable: React.FC<LinkTableProps> = ({
               {/* Output Column */}
               {visibleColumns.output && (
                 <th
-                  className="py-3.5 px-3 w-28 border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition text-center"
+                  className="py-3.5 px-3 w-28 border-r border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-900 transition text-center"
                   onClick={() => onSort('output')}
                 >
                   <div className="flex items-center justify-between">
                     <span>Output</span>
                     {sortField === 'output' && (
-                      <ArrowUpDown className="w-3 h-3 text-indigo-400" />
+                      <ArrowUpDown className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
                     )}
                   </div>
                 </th>
@@ -555,13 +555,13 @@ export const LinkTable: React.FC<LinkTableProps> = ({
               {/* Region Column */}
               {visibleColumns.region && (
                 <th
-                  className="py-3.5 px-3 w-24 border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition text-center"
+                  className="py-3.5 px-3 w-24 border-r border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-900 transition text-center"
                   onClick={() => onSort('region')}
                 >
                   <div className="flex items-center justify-between">
                     <span>Region</span>
                     {sortField === 'region' && (
-                      <ArrowUpDown className="w-3 h-3 text-indigo-400" />
+                      <ArrowUpDown className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
                     )}
                   </div>
                 </th>
@@ -570,13 +570,13 @@ export const LinkTable: React.FC<LinkTableProps> = ({
               {/* Counta Column */}
               {visibleColumns.counta && (
                 <th
-                  className="py-3.5 px-3 w-24 border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition text-center"
+                  className="py-3.5 px-3 w-24 border-r border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-900 transition text-center"
                   onClick={() => onSort('counta')}
                 >
                   <div className="flex items-center justify-between">
                     <span>Counta</span>
                     {sortField === 'counta' && (
-                      <ArrowUpDown className="w-3 h-3 text-indigo-400" />
+                      <ArrowUpDown className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
                     )}
                   </div>
                 </th>
@@ -585,13 +585,13 @@ export const LinkTable: React.FC<LinkTableProps> = ({
               {/* Note Column */}
               {visibleColumns.note && (
                 <th
-                  className="py-3.5 px-4 min-w-[160px] border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition"
+                  className="py-3.5 px-4 min-w-[160px] border-r border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-900 transition"
                   onClick={() => onSort('note')}
                 >
                   <div className="flex items-center justify-between">
                     <span>Note</span>
                     {sortField === 'note' && (
-                      <ArrowUpDown className="w-3 h-3 text-indigo-400" />
+                      <ArrowUpDown className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                     )}
                   </div>
                 </th>
@@ -600,13 +600,13 @@ export const LinkTable: React.FC<LinkTableProps> = ({
               {/* Diperbarui Column */}
               {visibleColumns.diperbarui && (
                 <th
-                  className="py-3.5 px-3 w-36 border-r border-slate-800 dark:border-slate-900 cursor-pointer hover:bg-slate-800 dark:hover:bg-slate-900 transition text-center"
+                  className="py-3.5 px-3 w-36 border-r border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-900 transition text-center"
                   onClick={() => onSort('diperbarui')}
                 >
                   <div className="flex items-center justify-between">
                     <span>Diperbarui</span>
                     {sortField === 'diperbarui' && (
-                      <ArrowUpDown className="w-3 h-3 text-indigo-400" />
+                      <ArrowUpDown className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                     )}
                   </div>
                 </th>
