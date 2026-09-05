@@ -21,6 +21,8 @@ import {
   CloudCheck,
   CheckCircle2,
   RotateCcw,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { LinkItem, LinkStatus, FilterStatus, AppSettings, SortField, SortDirection } from './types';
 import { INITIAL_LINKS } from './data/initialData';
@@ -73,6 +75,31 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+
+  // Theme State ('light' | 'dark')
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      const saved = localStorage.getItem('rubixxxlink_theme');
+      if (saved === 'dark' || saved === 'light') return saved;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    } catch {}
+    return 'light';
+  });
+
+  useEffect(() => {
+    try {
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      localStorage.setItem('rubixxxlink_theme', theme);
+    } catch {}
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
 
   // Auth State with Local Session Persistence
   const [currentUser, setCurrentUser] = useState<{ email: string | null } | null>(() => {
@@ -699,31 +726,31 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9] text-slate-800 flex flex-col font-sans w-full">
+    <div className="min-h-screen bg-[#F1F5F9] dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col font-sans w-full transition-colors duration-200">
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
 
       {/* Top Navbar - FULL WIDTH */}
-      <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 shadow-xs w-full">
+      <header className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 sticky top-0 z-40 shadow-xs w-full transition-colors duration-200">
         <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 gap-4">
             {/* App Brand */}
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-200">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-200 dark:shadow-none">
                 <FileSpreadsheet className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="font-bold text-base sm:text-lg text-slate-900 leading-tight">
+                  <h1 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white leading-tight">
                     Link Management Dashboard
                   </h1>
-                  <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                     Bento Grid v2.5
                   </span>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <span className="flex items-center gap-1 text-emerald-700 font-semibold">
-                    <Database className="w-3 h-3 text-emerald-600" />
+                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold">
+                    <Database className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                     <span>Database Cloud Firestore</span>
                   </span>
                   <span>•</span>
@@ -733,16 +760,37 @@ export default function App() {
             </div>
 
             {/* Header Right Actions */}
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-2.5">
+              {/* Theme Toggle Button (Light / Dark) */}
+              <button
+                type="button"
+                id="btn-toggle-theme"
+                onClick={toggleTheme}
+                className="px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                title={theme === 'dark' ? 'Ganti ke Tema Terang (Light Mode)' : 'Ganti ke Tema Gelap (Dark Mode)'}
+              >
+                {theme === 'dark' ? (
+                  <>
+                    <Sun className="w-4 h-4 text-amber-400 animate-in spin-in-180 duration-200" />
+                    <span className="hidden sm:inline">Terang</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon className="w-4 h-4 text-indigo-600 animate-in spin-in-180 duration-200" />
+                    <span className="hidden sm:inline">Gelap</span>
+                  </>
+                )}
+              </button>
+
               {/* Analytics Chart Toggle */}
               <button
                 type="button"
                 id="btn-toggle-charts"
                 onClick={() => setShowCharts(prev => !prev)}
-                className={`px-3 py-2 text-xs font-semibold rounded-xl border transition flex items-center gap-1.5 shadow-2xs ${
+                className={`px-3 py-2 text-xs font-semibold rounded-xl border transition flex items-center gap-1.5 shadow-2xs cursor-pointer ${
                   showCharts
-                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    ? 'bg-indigo-50 dark:bg-indigo-950/80 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300'
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
                 }`}
                 title="Tampilkan / Sembunyikan Grafik Analitik"
               >
@@ -755,7 +803,7 @@ export default function App() {
                 type="button"
                 id="btn-open-extract-modal"
                 onClick={() => setIsExtractModalOpen(true)}
-                className="px-3 py-2 text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl transition flex items-center gap-1.5 shadow-2xs"
+                className="px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 title="Ekstrak Link yang tertanam di nama atau teks"
               >
                 <Sparkles className="w-4 h-4 text-amber-500" />
@@ -767,10 +815,10 @@ export default function App() {
                 type="button"
                 id="btn-open-settings-modal"
                 onClick={() => setIsSettingsModalOpen(true)}
-                className="px-3 py-2 text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                className="px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 title="Atur pilihan dropdown Status, Output, Region, dan Note"
               >
-                <Sliders className="w-4 h-4 text-slate-600" />
+                <Sliders className="w-4 h-4 text-slate-600 dark:text-slate-300" />
                 <span className="hidden sm:inline">Pengaturan Opsi</span>
               </button>
 
@@ -779,7 +827,7 @@ export default function App() {
                 type="button"
                 id="btn-open-reset-data-modal"
                 onClick={() => setIsResetModalOpen(true)}
-                className="px-3 py-2 text-xs font-semibold bg-white border border-slate-200 hover:bg-rose-50 text-slate-700 hover:text-rose-700 hover:border-rose-200 rounded-xl transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                className="px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-700 dark:text-slate-200 hover:text-rose-700 dark:hover:text-rose-400 hover:border-rose-200 dark:hover:border-rose-800 rounded-xl transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 title="Pusat Reset Data: Reset Filter, Pengaturan, atau Kosongkan Database"
               >
                 <RotateCcw className="w-4 h-4 text-rose-500" />
@@ -788,17 +836,17 @@ export default function App() {
 
               {/* User Email Auth */}
               {currentUser ? (
-                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-1.5 shadow-2xs">
+                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-1.5 shadow-2xs">
                   <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[11px] font-bold">
                     {currentUser.email ? currentUser.email.charAt(0).toUpperCase() : 'U'}
                   </div>
-                  <span className="text-xs font-semibold text-slate-800 max-w-[140px] truncate hidden md:inline">
+                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 max-w-[140px] truncate hidden md:inline">
                     {currentUser.email}
                   </span>
                   <button
                     onClick={handleLogout}
                     title="Keluar (Logout)"
-                    className="p-1 text-slate-400 hover:text-red-600 transition"
+                    className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                   </button>
@@ -808,7 +856,7 @@ export default function App() {
                   type="button"
                   id="btn-open-auth-modal"
                   onClick={() => setIsAuthModalOpen(true)}
-                  className="px-3.5 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl shadow-xs transition flex items-center gap-1.5"
+                  className="px-3.5 py-2 text-xs font-bold text-white bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-700 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                 >
                   <LogIn className="w-3.5 h-3.5" />
                   <span>Login Email</span>
@@ -822,7 +870,7 @@ export default function App() {
       {/* Main Container - FULL WIDTH EXPANDED */}
       <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6">
         {/* Bento Top Grid: Action Bar & Search Filter Panel */}
-        <div className="bg-white rounded-3xl p-5 mb-6 shadow-xs border border-slate-200/80">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 mb-6 shadow-xs border border-slate-200/80 dark:border-slate-800 transition-colors duration-200">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             {/* Search Input Bar */}
             <div className="relative flex-1 max-w-xl">
@@ -833,12 +881,12 @@ export default function App() {
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Cari tautan, nama berkas, catatan, wilayah, atau output..."
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs focus:bg-white focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none transition"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none transition"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 font-semibold"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-semibold cursor-pointer"
                 >
                   Clear
                 </button>
@@ -852,9 +900,9 @@ export default function App() {
                 type="button"
                 id="btn-open-upload-modal"
                 onClick={() => setIsUploadModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 rounded-2xl text-xs font-bold transition shadow-2xs cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-2xl text-xs font-bold transition shadow-2xs cursor-pointer"
               >
-                <Upload className="w-4 h-4 text-indigo-600" />
+                <Upload className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                 <span>Upload Excel</span>
               </button>
 
@@ -863,7 +911,7 @@ export default function App() {
                 type="button"
                 id="btn-open-add-modal"
                 onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold transition shadow-md shadow-indigo-200 cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold transition shadow-md shadow-indigo-200 dark:shadow-none cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>Tambah Link</span>
@@ -874,10 +922,10 @@ export default function App() {
                 type="button"
                 id="btn-export-excel"
                 onClick={() => exportToExcel(filteredItems)}
-                className="flex items-center gap-2 px-3.5 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-2xl text-xs font-bold transition shadow-2xs"
+                className="flex items-center gap-2 px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-bold transition shadow-2xs cursor-pointer"
                 title="Ekspor seluruh baris terfilter ke spreadsheet Excel (.xlsx)"
               >
-                <Download className="w-4 h-4 text-emerald-600" />
+                <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 <span className="hidden sm:inline">Export Excel</span>
               </button>
 
@@ -886,7 +934,7 @@ export default function App() {
                 type="button"
                 id="btn-download-template"
                 onClick={downloadTemplateExcel}
-                className="flex items-center gap-1.5 px-3 py-2.5 text-xs text-slate-500 hover:text-slate-800 transition underline font-medium"
+                className="flex items-center gap-1.5 px-3 py-2.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition underline font-medium cursor-pointer"
                 title="Download template file excel resmi"
               >
                 <span>Template</span>

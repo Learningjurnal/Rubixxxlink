@@ -716,45 +716,30 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                       />
                     </td>
 
-                    {/* Link & Name Column with Direct Download Quick Click & UrlHoverCard */}
-                    <td className="py-2.5 px-4 border-r border-slate-100 dark:border-slate-800/80 min-w-[400px]">
+                    {/* Link Column: 1 Single Clean Link (No double link underneath) */}
+                    <td className="py-2.5 px-4 border-r border-slate-100 dark:border-slate-800/80 min-w-[360px]">
                       <div className="flex items-center justify-between gap-3 group">
-                        <div className="truncate flex-1">
-                          {item.name && (
-                            <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate flex items-center gap-1.5 mb-1">
-                              <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
-                              <button
-                                type="button"
-                                onClick={() => onDownloadAndMark(item)}
-                                className="truncate text-left hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline transition cursor-pointer font-bold"
-                                title="Klik untuk langsung membuka dan mengunduh berkas"
-                              >
-                                {item.name}
-                              </button>
-                              {item.tag && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 text-[10px] font-bold tracking-tight shrink-0">
-                                  <Tag className="w-2.5 h-2.5 text-indigo-500 dark:text-indigo-400" />
-                                  <span>{item.tag}</span>
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          {!item.name && item.tag && (
-                            <div className="mb-1">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 text-[10px] font-bold tracking-tight">
-                                <Tag className="w-2.5 h-2.5 text-indigo-500 dark:text-indigo-400" />
-                                <span>{item.tag}</span>
-                              </span>
-                            </div>
-                          )}
-                          {/* Hover-card enabled interactive URL */}
+                        <div className="flex items-center gap-2 truncate flex-1 min-w-0">
+                          <FileText className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+
+                          {/* Single link with hover card integration */}
                           <UrlHoverCard
                             item={item}
                             onCopyLink={onCopyLink}
+                            onDownloadAndMark={() => onDownloadAndMark(item)}
                             isDownloaded={isDownloaded}
                           />
+
+                          {item.tag && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 text-[10px] font-bold tracking-tight shrink-0">
+                              <Tag className="w-2.5 h-2.5 text-indigo-500 dark:text-indigo-400" />
+                              <span>{item.tag}</span>
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-1.5 opacity-90 group-hover:opacity-100 transition flex-shrink-0">
+
+                        {/* Fast Copy & External Open Buttons */}
+                        <div className="flex items-center gap-1.5 opacity-80 group-hover:opacity-100 transition shrink-0">
                           <button
                             type="button"
                             onClick={() => onCopyLink(item.link)}

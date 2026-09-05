@@ -14,12 +14,14 @@ import { LinkItem } from '../types';
 interface UrlHoverCardProps {
   item: LinkItem;
   onCopyLink: (link: string) => void;
+  onDownloadAndMark?: () => void;
   isDownloaded?: boolean;
 }
 
 export const UrlHoverCard: React.FC<UrlHoverCardProps> = ({
   item,
   onCopyLink,
+  onDownloadAndMark,
   isDownloaded,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -61,10 +63,15 @@ export const UrlHoverCard: React.FC<UrlHoverCardProps> = ({
     };
   }, []);
 
+  const displayText =
+    item.name && item.name !== item.link && !item.name.startsWith('http')
+      ? item.name
+      : item.link;
+
   return (
     <div
       ref={containerRef}
-      className="relative inline-block max-w-full"
+      className="relative inline-block max-w-full truncate"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -73,13 +80,20 @@ export const UrlHoverCard: React.FC<UrlHoverCardProps> = ({
         href={item.link}
         target="_blank"
         rel="noreferrer noopener"
-        className={`truncate block underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-indigo-600 transition text-[12px] ${
+        onClick={e => {
+          if (onDownloadAndMark) {
+            e.preventDefault();
+            onDownloadAndMark();
+          }
+        }}
+        className={`truncate block underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-indigo-600 dark:hover:decoration-indigo-400 transition text-[12.5px] cursor-pointer ${
           isDownloaded
-            ? 'text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-300 font-normal'
+            ? 'text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-300 font-medium'
             : 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium'
         }`}
+        title={item.name ? `${item.name} (${item.link})` : item.link}
       >
-        {item.link}
+        {displayText}
       </a>
 
       {/* Popover Hover Card */}
