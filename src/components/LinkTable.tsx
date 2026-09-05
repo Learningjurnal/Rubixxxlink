@@ -144,9 +144,12 @@ export const LinkTable: React.FC<LinkTableProps> = ({
     }
   }, [totalPages, currentPage]);
 
-  // Sliced items for current page (avoids rendering 29,000 DOM nodes at once)
+  // Sliced items for current page with DOM overload protection (caps "Semua" at 500 to keep UI 60 FPS)
+  const isCappedAtMax = pageSize === 0 && items.length > 500;
   const paginatedItems = useMemo(() => {
-    if (pageSize === 0) return items; // 0 represents "Semua"
+    if (pageSize === 0) {
+      return items.length > 500 ? items.slice(0, 500) : items;
+    }
     const start = (currentPage - 1) * pageSize;
     return items.slice(start, start + pageSize);
   }, [items, currentPage, pageSize]);
@@ -170,7 +173,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
     setVisibleColumns(prev => {
       const next = { ...prev, [key]: !prev[key] };
       try {
-        localStorage.setItem('rubixxxlink_column_visibility_v3', JSON.stringify(next));
+        localStorage.setItem('rubixxxlink_column_visibility_v5', JSON.stringify(next));
       } catch {}
       return next;
     });
@@ -187,14 +190,14 @@ export const LinkTable: React.FC<LinkTableProps> = ({
     };
     setVisibleColumns(allTrue);
     try {
-      localStorage.setItem('rubixxxlink_column_visibility_v3', JSON.stringify(allTrue));
+      localStorage.setItem('rubixxxlink_column_visibility_v5', JSON.stringify(allTrue));
     } catch {}
   };
 
   const resetDefaultColumns = () => {
     setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
     try {
-      localStorage.setItem('rubixxxlink_column_visibility_v3', JSON.stringify(DEFAULT_VISIBLE_COLUMNS));
+      localStorage.setItem('rubixxxlink_column_visibility_v5', JSON.stringify(DEFAULT_VISIBLE_COLUMNS));
     } catch {}
   };
 
@@ -1052,8 +1055,13 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                 <option value={250}>250</option>
                 <option value={500}>500</option>
                 <option value={1000}>1.000</option>
-                <option value={0}>Semua (Tampil Penuh)</option>
+                <option value={0}>Semua (Maks 500)</option>
               </select>
+              {isCappedAtMax && (
+                <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                  ⚡ Dibatasi 500 dari {items.length.toLocaleString('id-ID')} link
+                </span>
+              )}
             </div>
           </div>
 
