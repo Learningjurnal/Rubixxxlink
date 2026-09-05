@@ -59,7 +59,7 @@ const COLUMN_DEFINITIONS: { key: ColumnKey; label: string }[] = [
 ];
 
 /**
- * Keyword Highlighting component: highlights matching search letters smoothly
+ * Keyword Highlighting component: highlights matching search letters smoothly and iteratively without recursion
  */
 const HighlightText: React.FC<{ text: string; query?: string; className?: string }> = ({
   text,
@@ -69,36 +69,53 @@ const HighlightText: React.FC<{ text: string; query?: string; className?: string
   if (!query || !query.trim() || !text) {
     return <span className={className}>{text}</span>;
   }
-  const cleanQ = query.trim().toLowerCase();
+  const cleanQ = query.trim();
+  const lowerQuery = cleanQ.toLowerCase();
   const lowerText = text.toLowerCase();
-  const index = lowerText.indexOf(cleanQ);
-  if (index === -1) {
-    return <span className={className}>{text}</span>;
+
+  const parts: React.ReactNode[] = [];
+  let startIndex = 0;
+  let matchIndex = lowerText.indexOf(lowerQuery, startIndex);
+  let keyIdx = 0;
+
+  while (matchIndex !== -1) {
+    if (matchIndex > startIndex) {
+      parts.push(text.substring(startIndex, matchIndex));
+    }
+    parts.push(
+      <mark
+        key={`hl-${keyIdx++}`}
+        className="bg-amber-300 dark:bg-amber-400/30 text-slate-900 dark:text-amber-200 px-0.5 rounded font-semibold"
+      >
+        {text.substring(matchIndex, matchIndex + cleanQ.length)}
+      </mark>
+    );
+    startIndex = matchIndex + cleanQ.length;
+    matchIndex = lowerText.indexOf(lowerQuery, startIndex);
   }
 
-  const before = text.substring(0, index);
-  const match = text.substring(index, index + cleanQ.length);
-  const after = text.substring(index + cleanQ.length);
+  if (startIndex < text.length) {
+    parts.push(text.substring(startIndex));
+  }
 
-  return (
-    <span className={className}>
-      {before}
-      <mark className="bg-amber-300 dark:bg-amber-400/30 text-slate-900 dark:text-amber-200 px-0.5 rounded font-semibold">
-        {match}
-      </mark>
-      <HighlightText text={after} query={query} />
-    </span>
-  );
+  return <span className={className}>{parts}</span>;
 };
 
 /**
- * Domain Favicon thumbnail with fallback globe icon
+ * Domain Favicon thumbnail with fallback globe icon and robust URL parsing
  */
 const DomainFavicon: React.FC<{ url: string }> = ({ url }) => {
   const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [url]);
+
   const domain = useMemo(() => {
+    if (!url) return '';
     try {
-      const u = new URL(url);
+      const formatted = url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`;
+      const u = new URL(formatted);
       return u.hostname.replace(/^www\./, '');
     } catch {
       return '';

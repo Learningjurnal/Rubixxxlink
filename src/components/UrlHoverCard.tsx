@@ -31,10 +31,19 @@ export const UrlHoverCard: React.FC<UrlHoverCardProps> = ({
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Extract hostname / domain safely
+  // Reset favicon error when link changes
+  useEffect(() => {
+    setFaviconError(false);
+  }, [item.link]);
+
+  // Extract hostname / domain safely with http/https fallback
   const domain = React.useMemo(() => {
+    if (!item.link) return '';
     try {
-      const url = new URL(item.link);
+      const formatted = item.link.startsWith('http://') || item.link.startsWith('https://')
+        ? item.link
+        : `https://${item.link}`;
+      const url = new URL(formatted);
       return url.hostname.replace(/^www\./, '');
     } catch {
       return '';
@@ -72,24 +81,36 @@ export const UrlHoverCard: React.FC<UrlHoverCardProps> = ({
 
   const renderHighlightedText = (text: string) => {
     if (!searchQuery || !searchQuery.trim() || !text) return text;
-    const cleanQ = searchQuery.trim().toLowerCase();
-    const lower = text.toLowerCase();
-    const idx = lower.indexOf(cleanQ);
-    if (idx === -1) return text;
+    const cleanQ = searchQuery.trim();
+    const lowerQuery = cleanQ.toLowerCase();
+    const lowerText = text.toLowerCase();
 
-    const before = text.substring(0, idx);
-    const match = text.substring(idx, idx + cleanQ.length);
-    const after = text.substring(idx + cleanQ.length);
+    const parts: React.ReactNode[] = [];
+    let startIndex = 0;
+    let matchIndex = lowerText.indexOf(lowerQuery, startIndex);
+    let keyIdx = 0;
 
-    return (
-      <>
-        {before}
-        <mark className="bg-amber-300 dark:bg-amber-400/30 text-slate-900 dark:text-amber-200 px-0.5 rounded font-bold">
-          {match}
+    while (matchIndex !== -1) {
+      if (matchIndex > startIndex) {
+        parts.push(text.substring(startIndex, matchIndex));
+      }
+      parts.push(
+        <mark
+          key={`uhc-hl-${keyIdx++}`}
+          className="bg-amber-300 dark:bg-amber-400/30 text-slate-900 dark:text-amber-200 px-0.5 rounded font-bold"
+        >
+          {text.substring(matchIndex, matchIndex + cleanQ.length)}
         </mark>
-        {after}
-      </>
-    );
+      );
+      startIndex = matchIndex + cleanQ.length;
+      matchIndex = lowerText.indexOf(lowerQuery, startIndex);
+    }
+
+    if (startIndex < text.length) {
+      parts.push(text.substring(startIndex));
+    }
+
+    return <>{parts}</>;
   };
 
   return (

@@ -3,7 +3,7 @@ import { X, Link2, Sparkles, Check, ArrowRight, RefreshCw, AlertCircle, FileText
 import { LinkItem, ExtractedLinkResult } from '../types';
 import { extractLinkFromText, extractLinksFromMultiLineText } from '../utils/linkExtractor';
 import { formatDateNow } from '../utils/excelHelper';
-import { addLinkToFirestore, updateLinkInFirestore } from '../lib/firebase';
+import { batchAddLinksToFirestore, batchUpdateItemsInFirestore } from '../lib/firebase';
 
 interface ExtractLinkModalProps {
   isOpen: boolean;
@@ -57,21 +57,21 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
 
     setIsProcessing(true);
     try {
-      let importedCount = 0;
-      for (const item of validItems) {
-        await addLinkToFirestore({
-          name: item.extractedName || '',
-          link: item.extractedUrl,
-          status: 'Blank',
-          output: 'Single',
-          region: 'LIVE',
-          note: '',
-          diperbarui: formatDateNow(),
-          createdAt: Date.now(),
-        });
-        importedCount++;
-      }
-      onNotify(`Berhasil mengekstrak dan menyimpan ${importedCount} link baru ke database!`, 'success');
+      const now = Date.now();
+      const today = formatDateNow();
+      const itemsToSave = validItems.map(item => ({
+        name: item.extractedName || '',
+        link: item.extractedUrl,
+        status: 'Blank' as const,
+        output: 'Single',
+        region: 'LIVE',
+        note: '',
+        diperbarui: today,
+        createdAt: now,
+      }));
+
+      await batchAddLinksToFirestore(itemsToSave);
+      onNotify(`Berhasil mengekstrak dan menyimpan ${itemsToSave.length} link baru ke database!`, 'success');
       onClose();
     } catch (e: any) {
       console.error('Extraction import error:', e);
@@ -85,8 +85,8 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
     if (existingEmbeddedItems.length === 0) return;
     setIsProcessing(true);
     try {
-      let fixedCount = 0;
-      for (const item of existingEmbeddedItems) {
+      const today = formatDateNow();
+      const updates = existingEmbeddedItems.map(item => {
         let cleanUrl = item.link;
         let cleanName = item.name || '';
 
@@ -104,14 +104,18 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
           }
         }
 
-        await updateLinkInFirestore(item.id, {
-          link: cleanUrl,
-          name: cleanName,
-          diperbarui: formatDateNow(),
-        });
-        fixedCount++;
-      }
-      onNotify(`Berhasil memperbaiki ${fixedCount} data yang memiliki link tersemat di nama!`, 'success');
+        return {
+          id: item.id,
+          changes: {
+            link: cleanUrl,
+            name: cleanName,
+            diperbarui: today,
+          },
+        };
+      });
+
+      await batchUpdateItemsInFirestore(updates);
+      onNotify(`Berhasil memperbaiki ${updates.length} data yang memiliki link tersemat di nama!`, 'success');
       onClose();
     } catch (e) {
       console.error('Failed to fix existing items:', e);
@@ -125,7 +129,7 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div
         id="extract-link-modal-card"
-        className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh] border border-slate-200"
+        className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh] border border-slate-200 dark:border-slate-800"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4.5 bg-slate-900 text-white border-b border-slate-800">
@@ -151,14 +155,14 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
         </div>
 
         {/* Tab switch */}
-        <div className="flex border-b border-slate-200 bg-slate-50/70 p-2 gap-2">
+        <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 p-2 gap-2">
           <button
             type="button"
             onClick={() => setActiveTab('newText')}
-            className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === 'newText'
-                ? 'bg-white text-indigo-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
@@ -167,10 +171,10 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('scanExisting')}
-            className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === 'scanExisting'
-                ? 'bg-white text-indigo-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -185,10 +189,10 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
           {activeTab === 'newText' ? (
             <>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   Tempelkan Teks atau Nama Berisi Tautan
                 </label>
-                <p className="text-xs text-slate-500 mb-2">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
                   Mendukung format Markdown <code>[Nama](https://...)</code>, tag HTML <code>&lt;a href="..."&gt;</code>, atau teks biasa bercampur URL.
                 </p>
                 <textarea
@@ -196,7 +200,7 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
                   value={rawTextInput}
                   onChange={e => setRawTextInput(e.target.value)}
                   placeholder="Tempel teks di sini..."
-                  className="w-full p-3 text-xs border border-slate-200 rounded-xl bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-indigo-600 outline-none font-mono"
+                  className="w-full p-3 text-xs border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-600 outline-none font-mono"
                 />
               </div>
 
@@ -204,43 +208,43 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
                 <button
                   type="button"
                   onClick={handleParseText}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-2"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                   <span>Deteksi & Ekstrak Link Sekarang</span>
                 </button>
-                <span className="text-xs text-slate-500 font-medium">
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                   {extractedList.length > 0 && `${extractedList.filter(i => i.status === 'valid').length} link terdeteksi`}
                 </span>
               </div>
 
               {/* Extraction Preview Table */}
               {extractedList.length > 0 && (
-                <div className="border border-slate-200 rounded-2xl overflow-hidden mt-3">
-                  <div className="bg-slate-100/80 px-3 py-2 text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden mt-3">
+                  <div className="bg-slate-100/80 dark:bg-slate-800/80 px-3 py-2 text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                     Hasil Pratinjau Ekstraksi
                   </div>
-                  <div className="max-h-52 overflow-y-auto divide-y divide-slate-100 text-xs">
+                  <div className="max-h-52 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                     {extractedList.map((item, idx) => (
-                      <div key={idx} className="p-2.5 flex items-center justify-between gap-3 bg-white hover:bg-slate-50">
+                      <div key={idx} className="p-2.5 flex items-center justify-between gap-3 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 font-semibold text-slate-800 truncate">
-                            <span className="text-indigo-600">Nama:</span>
+                          <div className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200 truncate">
+                            <span className="text-indigo-600 dark:text-indigo-400">Nama:</span>
                             <span>{item.extractedName || '(Tanpa Nama)'}</span>
                           </div>
-                          <div className="text-[11px] text-slate-500 truncate mt-0.5 flex items-center gap-1">
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-1">
                             <Link2 className="w-3 h-3 text-indigo-500 flex-shrink-0" />
-                            <span className="font-mono text-indigo-600 underline truncate">
+                            <span className="font-mono text-indigo-600 dark:text-indigo-400 underline truncate">
                               {item.extractedUrl || '(Link tidak ditemukan)'}
                             </span>
                           </div>
                         </div>
                         {item.status === 'valid' ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 flex-shrink-0">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex-shrink-0">
                             Valid
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 flex-shrink-0">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 flex-shrink-0">
                             Gagal
                           </span>
                         )}
@@ -252,14 +256,14 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
             </>
           ) : (
             <div>
-              <div className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-2xl mb-4">
+              <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl mb-4">
                 <div className="flex items-start gap-3">
-                  <Sparkles className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
+                  <Sparkles className="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                   <div>
-                    <h4 className="text-xs font-bold text-indigo-900">
+                    <h4 className="text-xs font-bold text-indigo-900 dark:text-indigo-200">
                       Pindai Otomatis Database
                     </h4>
-                    <p className="text-xs text-indigo-700 mt-1">
+                    <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1">
                       Fitur ini memeriksa seluruh data di database yang kolom link-nya masih tertanam teks nama atau format Markdown/HTML, dan secara otomatis memisahkannya menjadi nama bersih dan URL yang dapat langsung diunduh.
                     </p>
                   </div>
@@ -267,16 +271,16 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
               </div>
 
               {existingEmbeddedItems.length === 0 ? (
-                <div className="text-center py-8 text-slate-500 text-xs">
+                <div className="text-center py-8 text-slate-500 dark:text-slate-400 text-xs">
                   <Check className="w-8 h-8 mx-auto text-emerald-500 mb-2" />
-                  <p className="font-bold text-slate-800">Semua Link Sudah Bersih</p>
-                  <p className="text-slate-400 mt-0.5">
+                  <p className="font-bold text-slate-800 dark:text-slate-200">Semua Link Sudah Bersih</p>
+                  <p className="text-slate-400 dark:text-slate-500 mt-0.5">
                     Tidak ditemukan link tertanam di dalam nama pada database saat ini.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <p className="text-xs font-bold text-slate-700">
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     Ditemukan {existingEmbeddedItems.length} data dengan link tertanam:
                   </p>
                   <div className="max-h-56 overflow-y-auto space-y-2">
@@ -285,12 +289,12 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
                       return (
                         <div
                           key={item.id}
-                          className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs"
+                          className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-xs"
                         >
-                          <div className="text-slate-500 line-through truncate text-[11px]">
+                          <div className="text-slate-500 dark:text-slate-400 line-through truncate text-[11px]">
                             Asli: {item.link}
                           </div>
-                          <div className="flex items-center gap-1.5 text-indigo-700 font-bold mt-1 truncate">
+                          <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-bold mt-1 truncate">
                             <ArrowRight className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
                             <span className="truncate">URL: {extracted.url || item.link}</span>
                           </div>
@@ -305,11 +309,11 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-t border-slate-200">
+        <div className="flex items-center justify-between px-6 py-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition"
+            className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
           >
             Batal
           </button>
@@ -319,7 +323,7 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
               type="button"
               onClick={handleImportExtracted}
               disabled={extractedList.filter(i => i.status === 'valid').length === 0 || isProcessing}
-              className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-200 transition flex items-center gap-2 disabled:opacity-50"
+              className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-200 dark:shadow-none transition flex items-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               <Check className="w-4 h-4" />
               <span>Simpan ke Database</span>
@@ -329,7 +333,7 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
               type="button"
               onClick={handleFixExistingItems}
               disabled={existingEmbeddedItems.length === 0 || isProcessing}
-              className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-200 transition flex items-center gap-2 disabled:opacity-50"
+              className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-200 dark:shadow-none transition flex items-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               <RefreshCw className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} />
               <span>Perbaiki Data Database</span>

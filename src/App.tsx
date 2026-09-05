@@ -901,6 +901,14 @@ export default function App() {
       setDuplicatesPreventedCount(prev => prev + skippedDuplicatesCount);
     }
 
+    // Optimistic immediate update to local state & storage
+    setItems(prev => {
+      const merged = [...newItems, ...prev];
+      saveCachedLocalLinks(merged);
+      saveLinksToIndexedDb(merged).catch(() => {});
+      return merged;
+    });
+
     try {
       await batchAddLinksToFirestore(
         newItems.map(item => ({
@@ -923,7 +931,6 @@ export default function App() {
       addToast('success', msg);
     } catch (e) {
       console.error(e);
-      setItems(prev => [...newItems, ...prev]);
       addToast('warning', `Disimpan secara lokal (${newItems.length} link).`);
     }
   };
@@ -938,6 +945,20 @@ export default function App() {
       setDuplicatesPreventedCount(prev => prev + skippedCount);
     }
 
+    const now = Date.now();
+    const createdItems: LinkItem[] = newLinks.map((nl, idx) => ({
+      ...nl,
+      id: `link-${now}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
+    }));
+
+    // Optimistic immediate update to local state & storage
+    setItems(prev => {
+      const merged = [...createdItems, ...prev];
+      saveCachedLocalLinks(merged);
+      saveLinksToIndexedDb(merged).catch(() => {});
+      return merged;
+    });
+
     try {
       await batchAddLinksToFirestore(newLinks, currentUser?.email || undefined);
       if (skippedCount > 0) {
@@ -950,6 +971,7 @@ export default function App() {
       }
     } catch (e) {
       console.error(e);
+      addToast('info', 'Tautan disimpan di penyimpanan lokal.');
     }
   };
 

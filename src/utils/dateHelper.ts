@@ -96,7 +96,7 @@ export function isWithinPeriod(
   if (!startDate && !endDate) return true;
 
   const itemTime = parseDateToTimestamp(dateVal) ?? createdAt ?? null;
-  if (!itemTime) return true;
+  if (!itemTime) return false;
 
   if (startDate) {
     const startObj = new Date(`${startDate}T00:00:00`);
